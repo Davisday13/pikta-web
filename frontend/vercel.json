@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://pikta-backend.up.railway.app/api/:path*"
+      "destination": "https://TU_BACKEND_URL.onrender.com/api/:path*"
     }
   ]
 }

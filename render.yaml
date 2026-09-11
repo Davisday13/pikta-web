@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: pikta-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_PATH
+        value: ./database/pikta_web.db
