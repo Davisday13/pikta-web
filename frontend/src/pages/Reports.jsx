@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import { BarChart3, Search, Calendar, DollarSign, ShoppingCart, TrendingUp } from 'lucide-react';
 
 export default function Reports() {
+  const { selectedSucursal, sucursales } = useAuth();
   const [sales, setSales] = useState(null);
   const [cashHistory, setCashHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,14 +12,17 @@ export default function Reports() {
   const [tab, setTab] = useState('sales');
   const [selectedClosure, setSelectedClosure] = useState(null);
 
-  useEffect(() => { loadData(); }, [dateFilter]);
+  useEffect(() => { loadData(); }, [dateFilter, selectedSucursal]);
 
   const loadData = async () => {
     setLoading(true);
     try {
+      const params = { fecha: dateFilter };
+      if (selectedSucursal) params.sucursal_id = selectedSucursal;
+
       const [salesRes, cashRes] = await Promise.all([
-        api.get(`/reports/sales?fecha=${dateFilter}`),
-        api.get('/cash/history')
+        api.get('/reports/sales', { params }),
+        api.get('/cash/history', { params: selectedSucursal ? { sucursal_id: selectedSucursal } : {} })
       ]);
       setSales(salesRes.data.data);
       setCashHistory(cashRes.data.data || []);
@@ -37,6 +42,12 @@ export default function Reports() {
     }
   };
 
+  const getSucursalLabel = () => {
+    if (!selectedSucursal) return 'Todas las sucursales';
+    const found = sucursales.find(s => s.id === selectedSucursal);
+    return found ? found.nombre : `Sucursal ${selectedSucursal}`;
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64 text-pikta-info">Cargando reportes...</div>;
 
   return (
@@ -45,6 +56,7 @@ export default function Reports() {
         <div className="flex items-center gap-3">
           <BarChart3 className="text-pikta-accent" size={28} />
           <h1 className="text-2xl font-bold text-white">REPORTES Y CIERRES</h1>
+          <span className="text-pikta-accent text-sm font-medium bg-pikta-accent/10 px-2 py-1 rounded">{getSucursalLabel()}</span>
         </div>
         <div className="flex items-center gap-3">
           <Calendar className="text-gray-400" size={18} />

@@ -5,7 +5,7 @@ import api from '../api/axios';
 import { ShoppingCart, ChefHat, UtensilsCrossed, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, selectedSucursal, sucursales } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState({ ventas_hoy: 0, total_hoy: 0, pedidos_activos: 0, stock_bajo: 0 });
   const [recentOrders, setRecentOrders] = useState([]);
@@ -13,13 +13,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedSucursal]);
 
   const loadData = async () => {
+    setLoading(true);
     try {
+      const params = {};
+      if (selectedSucursal) params.sucursal_id = selectedSucursal;
+
       const [summaryRes, ordersRes] = await Promise.all([
-        api.get('/reports/daily-summary'),
-        api.get('/orders')
+        api.get('/reports/daily-summary', { params }),
+        api.get('/orders', { params })
       ]);
       setStats(summaryRes.data.data);
       setRecentOrders(ordersRes.data.data?.slice(0, 5) || []);
@@ -38,6 +42,12 @@ export default function Dashboard() {
 
   const visibleActions = quickActions.filter(a => !a.roles || a.roles.includes(user?.rol));
 
+  const getSucursalLabel = () => {
+    if (!selectedSucursal) return 'Todas las sucursales';
+    const found = sucursales.find(s => s.id === selectedSucursal);
+    return found ? found.nombre : `Sucursal ${selectedSucursal}`;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -52,6 +62,9 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
           <p className="text-gray-400">Bienvenido, {user?.nombre_completo}</p>
+          {(user?.rol === 'Administrador' || user?.rol === 'Supervisor') && (
+            <p className="text-pikta-accent text-sm mt-1">Sucursal: {getSucursalLabel()}</p>
+          )}
         </div>
         <div className="text-sm text-gray-500">
           {new Date().toLocaleDateString('es-PA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

@@ -5,18 +5,30 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
+function buildSucursalFilter(req, tableAlias = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  const isPrivileged = req.user.rol === 'Administrador' || req.user.rol === 'Supervisor';
+
+  if (isPrivileged && req.query.sucursal_id) {
+    return { where: `AND ${prefix}sucursal_id = ?`, params: [parseInt(req.query.sucursal_id)] };
+  } else if (!isPrivileged) {
+    return { where: `AND ${prefix}sucursal_id = ?`, params: [req.user.sucursal_id] };
+  }
+  return { where: '', params: [] };
+}
+
 router.post('/open', (req, res) => {
   try {
     const { usuario_id, monto_inicial } = req.body;
 
-    const existing = queryOne('SELECT id FROM caja_sesiones WHERE estado = ? ORDER BY id DESC LIMIT 1', ['ABIERTO']);
+    const existing = queryOne('SELECT id FROM caja_sesiones WHERE estado = ? AND sucursal_id = ? ORDER BY id DESC LIMIT 1', ['ABIERTO', req.user.sucursal_id]);
     if (existing) {
       return res.json({ status: 'success', message: 'Sesión de caja recuperada', sesion_id: existing.id });
     }
 
     const result = runSql(
-      'INSERT INTO caja_sesiones (usuario_id, inicio, inicial, monto_apertura, estado) VALUES (?, ?, ?, ?, ?)',
-      [usuario_id, new Date().toISOString(), monto_inicial || 0, monto_inicial || 0, 'ABIERTO']
+      'INSERT INTO caja_sesiones (usuario_id, inicio, inicial, monto_apertura, estado, sucursal_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [usuario_id, new Date().toISOString(), monto_inicial || 0, monto_inicial || 0, 'ABIERTO', req.user.sucursal_id]
     );
 
     res.status(201).json({ status: 'success', message: 'Caja abierta', sesion_id: result.lastInsertRowid });
@@ -31,7 +43,7 @@ router.post('/close', (req, res) => {
 
     let sid = sesion_id;
     if (!sid) {
-      const open = queryOne('SELECT id FROM caja_sesiones WHERE estado = ? ORDER BY id DESC LIMIT 1', ['ABIERTO']);
+      const open = queryOne('SELECT id FROM caja_sesiones WHERE estado = ? AND sucursal_id = ? ORDER BY id DESC LIMIT 1', ['ABIERTO', req.user.sucursal_id]);
       if (!open) return res.status(400).json({ status: 'error', message: 'No hay caja abierta' });
       sid = open.id;
     }
@@ -67,7 +79,8 @@ router.post('/close', (req, res) => {
 
 router.get('/active', (req, res) => {
   try {
-    const session = queryOne('SELECT * FROM caja_sesiones WHERE estado = ? ORDER BY id DESC LIMIT 1', ['ABIERTO']);
+    const filter = buildSucursalFilter(req);
+    const session = queryOne(`SELECT * FROM caja_sesiones WHERE estado = ? ${filter.where} ORDER BY id DESC LIMIT 1`, ['ABIERTO', ...filter.params]);
     if (session) {
       res.json({ status: 'success', data: session });
     } else {
@@ -80,7 +93,8 @@ router.get('/active', (req, res) => {
 
 router.get('/history', (req, res) => {
   try {
-    const sessions = queryAll('SELECT * FROM caja_sesiones ORDER BY id DESC LIMIT 50');
+    const filter = buildSucursalFilter(req);
+    const sessions = queryAll(`SELECT * FROM caja_sesiones WHERE 1=1 ${filter.where} ORDER BY id DESC LIMIT 50`, filter.params);
     res.json({ status: 'success', data: sessions });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });

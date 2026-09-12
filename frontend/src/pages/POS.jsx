@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone } from 'lucide-react';
 
 export default function POS() {
-  const { user } = useAuth();
+  const { user, selectedSucursal } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -13,6 +13,10 @@ export default function POS() {
   const [cashSession, setCashSession] = useState(null);
   const [showPayModal, setShowPayModal] = useState(false);
   const [orderChannel, setOrderChannel] = useState('CAJA');
+
+  const effectiveSucursalId = user?.rol === 'Administrador' || user?.rol === 'Supervisor'
+    ? (selectedSucursal || user?.sucursal_id)
+    : user?.sucursal_id;
 
   useEffect(() => { loadData(); }, []);
 
@@ -66,7 +70,11 @@ export default function POS() {
     const monto = prompt('Monto inicial en caja:');
     if (monto === null) return;
     try {
-      const res = await api.post('/cash/open', { usuario_id: user.id, monto_inicial: parseFloat(monto) || 0 });
+      const res = await api.post('/cash/open', {
+        usuario_id: user.id,
+        monto_inicial: parseFloat(monto) || 0,
+        sucursal_id: effectiveSucursalId
+      });
       if (res.data.sesion_id) {
         setCashSession({ id: res.data.sesion_id });
         alert('Caja abierta exitosamente');
@@ -85,22 +93,21 @@ export default function POS() {
       }));
 
       if (orderChannel === 'CAJA') {
-        // Direct sale - create and pay
         await api.post('/orders', {
           items, total, canal: 'CAJA', mesa: 'VENTA DIRECTA',
-          usuario_id: user.id, sesion_id: cashSession?.id
+          usuario_id: user.id, sesion_id: cashSession?.id,
+          sucursal_id: effectiveSucursalId
         });
-        // Get the latest order and pay it
         const ordersRes = await api.get('/orders');
         const latest = ordersRes.data.data?.[0];
         if (latest) {
           await api.post(`/orders/${latest.id}/pay`, { metodo_pago: metodoPago, sesion_id: cashSession?.id });
         }
       } else {
-        // Llevar - create order without paying
         await api.post('/orders', {
           items, total, canal: 'LLEVAR', mesa: 'PARA LLEVAR',
-          usuario_id: user.id, sesion_id: cashSession?.id
+          usuario_id: user.id, sesion_id: cashSession?.id,
+          sucursal_id: effectiveSucursalId
         });
       }
 

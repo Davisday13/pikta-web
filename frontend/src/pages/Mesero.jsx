@@ -6,7 +6,7 @@ import { UtensilsCrossed, Plus, Minus, Trash2, Send } from 'lucide-react';
 const TABLES = ['Mesa 1', 'Mesa 2', 'Mesa 3', 'Mesa 4', 'Mesa 5', 'Mesa 6', 'Mesa 7', 'Mesa 8', 'Mesa 9', 'Mesa 10'];
 
 export default function Mesero() {
-  const { user } = useAuth();
+  const { user, selectedSucursal } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -15,14 +15,21 @@ export default function Mesero() {
   const [loading, setLoading] = useState(true);
   const [activeOrders, setActiveOrders] = useState([]);
 
+  const effectiveSucursalId = user?.rol === 'Administrador' || user?.rol === 'Supervisor'
+    ? (selectedSucursal || user?.sucursal_id)
+    : user?.sucursal_id;
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
+      const params = {};
+      if (effectiveSucursalId) params.sucursal_id = effectiveSucursalId;
+
       const [prodRes, catRes, ordersRes] = await Promise.all([
         api.get('/products'),
         api.get('/products/categories'),
-        api.get('/orders')
+        api.get('/orders', { params })
       ]);
       setProducts(prodRes.data.data || []);
       setCategories(catRes.data.data || []);
@@ -73,7 +80,8 @@ export default function Mesero() {
 
       await api.post('/orders', {
         items, total, canal: 'MESERO', mesa: selectedTable,
-        usuario_id: user.id
+        usuario_id: user.id,
+        sucursal_id: effectiveSucursalId
       });
 
       setCart([]);

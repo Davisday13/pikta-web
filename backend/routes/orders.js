@@ -5,9 +5,22 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
+function buildSucursalFilter(req, tableAlias = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  const isPrivileged = req.user.rol === 'Administrador' || req.user.rol === 'Supervisor';
+
+  if (isPrivileged && req.query.sucursal_id) {
+    return { where: `AND ${prefix}sucursal_id = ?`, params: [parseInt(req.query.sucursal_id)] };
+  } else if (!isPrivileged) {
+    return { where: `AND ${prefix}sucursal_id = ?`, params: [req.user.sucursal_id] };
+  }
+  return { where: '', params: [] };
+}
+
 router.get('/', (req, res) => {
   try {
-    const orders = queryAll("SELECT * FROM pedidos WHERE estado NOT IN ('COBRADO', 'ENTREGADO', 'CANCELADO') ORDER BY id DESC");
+    const filter = buildSucursalFilter(req);
+    const orders = queryAll(`SELECT * FROM pedidos WHERE estado NOT IN ('COBRADO', 'ENTREGADO', 'CANCELADO') ${filter.where} ORDER BY id DESC`, filter.params);
     const parsed = orders.map(o => {
       try { o.items = JSON.parse(o.items); } catch(e) {}
       return o;
@@ -20,7 +33,8 @@ router.get('/', (req, res) => {
 
 router.get('/pending', (req, res) => {
   try {
-    const orders = queryAll("SELECT * FROM pedidos WHERE pagado = 0 AND canal IN ('MESERO', 'LLEVAR', 'Móvil') ORDER BY created_at DESC");
+    const filter = buildSucursalFilter(req);
+    const orders = queryAll(`SELECT * FROM pedidos WHERE pagado = 0 AND canal IN ('MESERO', 'LLEVAR', 'Móvil') ${filter.where} ORDER BY created_at DESC`, filter.params);
     const parsed = orders.map(o => {
       try { o.items = JSON.parse(o.items); } catch(e) {}
       return o;
@@ -34,6 +48,7 @@ router.get('/pending', (req, res) => {
 router.get('/history', (req, res) => {
   try {
     const { search, fecha } = req.query;
+    const filter = buildSucursalFilter(req);
     let query = 'SELECT * FROM pedidos WHERE pagado = 1';
     const params = [];
 
@@ -44,6 +59,10 @@ router.get('/history', (req, res) => {
     if (fecha) {
       query += ' AND created_at LIKE ?';
       params.push(`${fecha}%`);
+    }
+    if (filter.where) {
+      query += ` ${filter.where}`;
+      params.push(...filter.params);
     }
     query += ' ORDER BY created_at DESC LIMIT 200';
 
@@ -65,9 +84,9 @@ router.post('/', (req, res) => {
     const created_at = new Date().toISOString();
 
     const result = runSql(
-      `INSERT INTO pedidos (numero, cliente_nombre, cliente_telefono, items, subtotal, total, estado, canal, mesa, usuario_id, sesion_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'RECIBIDO', ?, ?, ?, ?, ?)`,
-      [numero, cliente_nombre || null, cliente_telefono || null, JSON.stringify(items), total, total, canal || 'CAJA', mesa || 'Mesa General', usuario_id || null, sesion_id || null, created_at]
+      `INSERT INTO pedidos (numero, cliente_nombre, cliente_telefono, items, subtotal, total, estado, canal, mesa, usuario_id, sesion_id, created_at, sucursal_id)
+       VALUES (?, ?, ?, ?, ?, ?, 'RECIBIDO', ?, ?, ?, ?, ?, ?)`,
+      [numero, cliente_nombre || null, cliente_telefono || null, JSON.stringify(items), total, total, canal || 'CAJA', mesa || 'Mesa General', usuario_id || null, sesion_id || null, created_at, req.user.sucursal_id]
     );
 
     res.status(201).json({ status: 'success', message: 'Pedido creado', numero });

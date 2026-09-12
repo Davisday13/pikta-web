@@ -39,7 +39,6 @@ function saveDb() {
 
 function initDb() {
   const SQL = require('sql.js');
-  // We'll init async in server.js
 }
 
 async function setupDb() {
@@ -153,12 +152,40 @@ async function setupDb() {
     )
   `);
 
+  // Create sucursales table
+  database.run(`
+    CREATE TABLE IF NOT EXISTS sucursales (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      activa BOOLEAN DEFAULT 1
+    )
+  `);
+
+  // Add sucursal_id to existing tables (ALTER fails if column exists, so try/catch)
+  try { database.run('ALTER TABLE usuarios ADD COLUMN sucursal_id INTEGER'); } catch (e) {}
+  try { database.run('ALTER TABLE pedidos ADD COLUMN sucursal_id INTEGER'); } catch (e) {}
+  try { database.run('ALTER TABLE inventario ADD COLUMN sucursal_id INTEGER'); } catch (e) {}
+  try { database.run('ALTER TABLE caja_sesiones ADD COLUMN sucursal_id INTEGER'); } catch (e) {}
+
+  // Seed default sucursales
+  const sucCount = database.exec("SELECT COUNT(*) as count FROM sucursales");
+  if (!sucCount.length || sucCount[0].values[0][0] === 0) {
+    database.run("INSERT INTO sucursales (id, nombre, activa) VALUES (?, ?, ?)", [1, 'David', 1]);
+    database.run("INSERT INTO sucursales (id, nombre, activa) VALUES (?, ?, ?)", [2, 'Boquete', 1]);
+  }
+
+  // Assign existing users to sucursal 1 (David) if not assigned
+  database.run("UPDATE usuarios SET sucursal_id = 1 WHERE sucursal_id IS NULL");
+  database.run("UPDATE pedidos SET sucursal_id = 1 WHERE sucursal_id IS NULL");
+  database.run("UPDATE inventario SET sucursal_id = 1 WHERE sucursal_id IS NULL");
+  database.run("UPDATE caja_sesiones SET sucursal_id = 1 WHERE sucursal_id IS NULL");
+
   // Insert default admin
   const bcrypt = require('bcryptjs');
   const adminCheck = database.exec("SELECT id FROM usuarios WHERE username = 'admin'");
   if (!adminCheck.length || !adminCheck[0].values.length) {
     const hashed = bcrypt.hashSync('admin', 10);
-    database.run("INSERT INTO usuarios (username, password, rol, nombre_completo) VALUES (?, ?, ?, ?)", ['admin', hashed, 'Administrador', 'Administrador Sistema']);
+    database.run("INSERT INTO usuarios (username, password, rol, nombre_completo, sucursal_id) VALUES (?, ?, ?, ?, ?)", ['admin', hashed, 'Administrador', 'Administrador Sistema', 1]);
   }
 
   // Default users
@@ -173,7 +200,7 @@ async function setupDb() {
     const exists = database.exec(`SELECT id FROM usuarios WHERE username = '${u}'`);
     if (!exists.length || !exists[0].values.length) {
       const hashed = bcrypt.hashSync(p, 10);
-      database.run("INSERT INTO usuarios (username, password, rol, nombre_completo) VALUES (?, ?, ?, ?)", [u, hashed, r, n]);
+      database.run("INSERT INTO usuarios (username, password, rol, nombre_completo, sucursal_id) VALUES (?, ?, ?, ?, ?)", [u, hashed, r, n, 1]);
     }
   }
 
@@ -208,7 +235,6 @@ async function setupDb() {
   console.log('Base de datos inicializada correctamente');
 }
 
-// Helper to query and return array of objects
 function queryAll(sql, params = []) {
   const stmt = db.prepare(sql);
   if (params.length) stmt.bind(params);
@@ -220,13 +246,11 @@ function queryAll(sql, params = []) {
   return results;
 }
 
-// Helper to query single row
 function queryOne(sql, params = []) {
   const results = queryAll(sql, params);
   return results.length > 0 ? results[0] : null;
 }
 
-// Helper for INSERT/UPDATE/DELETE
 function runSql(sql, params = []) {
   db.run(sql, params);
   const lastId = db.exec("SELECT last_insert_rowid() as id");
@@ -237,4 +261,8 @@ function runSql(sql, params = []) {
   };
 }
 
-module.exports = { getDb, setupDb, saveDb, queryAll, queryOne, runSql };
+function getSucursales() {
+  return queryAll('SELECT id, nombre, activa FROM sucursales WHERE activa = 1');
+}
+
+module.exports = { getDb, setupDb, saveDb, queryAll, queryOne, runSql, getSucursales };

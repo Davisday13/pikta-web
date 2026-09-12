@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import { Package, Plus, Pencil, Trash2, X, Save, AlertTriangle } from 'lucide-react';
 
 export default function AdminInventory() {
+  const { selectedSucursal, sucursales } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -10,11 +12,14 @@ export default function AdminInventory() {
   const [form, setForm] = useState({ ingrediente: '', cantidad: 0, unidad: 'unidad', stock_minimo: 0, costo_unitario: 0 });
   const [showLowStock, setShowLowStock] = useState(false);
 
-  useEffect(() => { loadItems(); }, []);
+  useEffect(() => { loadItems(); }, [selectedSucursal]);
 
   const loadItems = async () => {
+    setLoading(true);
     try {
-      const res = await api.get('/inventory');
+      const params = {};
+      if (selectedSucursal) params.sucursal_id = selectedSucursal;
+      const res = await api.get('/inventory', { params });
       setItems(res.data.data || []);
     } catch (err) {
       console.error('Error:', err);
@@ -62,6 +67,12 @@ export default function AdminInventory() {
 
   const lowStockItems = items.filter(i => i.stock_minimo > 0 && i.cantidad <= i.stock_minimo);
 
+  const getSucursalLabel = () => {
+    if (!selectedSucursal) return 'Todas las sucursales';
+    const found = sucursales.find(s => s.id === selectedSucursal);
+    return found ? found.nombre : `Sucursal ${selectedSucursal}`;
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64 text-pikta-info">Cargando...</div>;
 
   return (
@@ -74,6 +85,9 @@ export default function AdminInventory() {
             <span className="bg-pikta-err text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
               {lowStockItems.length} stock bajo
             </span>
+          )}
+          {selectedSucursal === null && (
+            <span className="text-pikta-accent text-xs font-medium bg-pikta-accent/10 px-2 py-1 rounded">{getSucursalLabel()}</span>
           )}
         </div>
         <div className="flex gap-3">

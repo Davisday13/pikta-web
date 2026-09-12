@@ -5,14 +5,31 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
+function buildSucursalFilter(req, tableAlias = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  const isPrivileged = req.user.rol === 'Administrador' || req.user.rol === 'Supervisor';
+
+  if (isPrivileged && req.query.sucursal_id) {
+    return { where: `AND ${prefix}sucursal_id = ?`, params: [parseInt(req.query.sucursal_id)] };
+  } else if (!isPrivileged) {
+    return { where: `AND ${prefix}sucursal_id = ?`, params: [req.user.sucursal_id] };
+  }
+  return { where: '', params: [] };
+}
+
 router.get('/sales', (req, res) => {
   try {
     const { fecha } = req.query;
+    const filter = buildSucursalFilter(req);
     let query = "SELECT * FROM pedidos WHERE pagado = 1";
     const params = [];
     if (fecha) {
       query += " AND created_at LIKE ?";
       params.push(`${fecha}%`);
+    }
+    if (filter.where) {
+      query += ` ${filter.where}`;
+      params.push(...filter.params);
     }
     query += " ORDER BY created_at DESC";
     const orders = queryAll(query, params);
@@ -42,10 +59,11 @@ router.get('/sales', (req, res) => {
 router.get('/daily-summary', (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
+    const filter = buildSucursalFilter(req);
 
-    const orderStats = queryAll("SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM pedidos WHERE pagado = 1 AND created_at LIKE ?", [`${today}%`]);
-    const activeOrders = queryAll("SELECT COUNT(*) as count FROM pedidos WHERE estado NOT IN ('COBRADO', 'ENTREGADO', 'CANCELADO')");
-    const lowStock = queryAll("SELECT COUNT(*) as count FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0");
+    const orderStats = queryAll(`SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM pedidos WHERE pagado = 1 AND created_at LIKE ? ${filter.where}`, [`${today}%`, ...filter.params]);
+    const activeOrders = queryAll(`SELECT COUNT(*) as count FROM pedidos WHERE estado NOT IN ('COBRADO', 'ENTREGADO', 'CANCELADO') ${filter.where}`, filter.params);
+    const lowStock = queryAll(`SELECT COUNT(*) as count FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0 ${filter.where}`, filter.params);
 
     res.json({
       status: 'success',

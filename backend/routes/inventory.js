@@ -5,9 +5,22 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
+function buildSucursalFilter(req, tableAlias = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  const isPrivileged = req.user.rol === 'Administrador' || req.user.rol === 'Supervisor';
+
+  if (isPrivileged && req.query.sucursal_id) {
+    return { where: `AND ${prefix}sucursal_id = ?`, params: [parseInt(req.query.sucursal_id)] };
+  } else if (!isPrivileged) {
+    return { where: `AND ${prefix}sucursal_id = ?`, params: [req.user.sucursal_id] };
+  }
+  return { where: '', params: [] };
+}
+
 router.get('/', (req, res) => {
   try {
-    const items = queryAll('SELECT * FROM inventario ORDER BY id DESC');
+    const filter = buildSucursalFilter(req);
+    const items = queryAll(`SELECT * FROM inventario WHERE 1=1 ${filter.where} ORDER BY id DESC`, filter.params);
     res.json({ status: 'success', data: items });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -20,8 +33,8 @@ router.post('/', (req, res) => {
     if (!ingrediente) return res.status(400).json({ status: 'error', message: 'Nombre del ingrediente requerido' });
 
     const result = runSql(
-      'INSERT INTO inventario (ingrediente, cantidad, unidad, stock_minimo, costo_unitario) VALUES (?, ?, ?, ?, ?)',
-      [ingrediente, cantidad || 0, unidad || 'unidad', stock_minimo || 0, costo_unitario || 0]
+      'INSERT INTO inventario (ingrediente, cantidad, unidad, stock_minimo, costo_unitario, sucursal_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [ingrediente, cantidad || 0, unidad || 'unidad', stock_minimo || 0, costo_unitario || 0, req.user.sucursal_id]
     );
     res.status(201).json({ status: 'success', message: 'Item creado', id: result.lastInsertRowid });
   } catch (err) {
@@ -53,7 +66,8 @@ router.delete('/:id', (req, res) => {
 
 router.get('/low-stock', (req, res) => {
   try {
-    const items = queryAll('SELECT * FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0');
+    const filter = buildSucursalFilter(req);
+    const items = queryAll(`SELECT * FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0 ${filter.where}`, filter.params);
     res.json({ status: 'success', data: items });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });

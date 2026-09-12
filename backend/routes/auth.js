@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { queryOne } = require('../config/database');
+const { queryOne, getSucursales } = require('../config/database');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pikta_web_secret_key_2026';
@@ -20,7 +20,7 @@ router.post('/', (req, res) => {
     }
 
     const token = jwt.sign(
-      { user_id: user.id, username: user.username, rol: user.rol, nombre_completo: user.nombre_completo },
+      { user_id: user.id, username: user.username, rol: user.rol, nombre_completo: user.nombre_completo, sucursal_id: user.sucursal_id },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES }
     );
@@ -34,9 +34,18 @@ router.post('/', (req, res) => {
 });
 
 router.get('/me', require('../middleware/auth').authMiddleware, (req, res) => {
-  const user = queryOne('SELECT id, username, rol, nombre_completo FROM usuarios WHERE id = ?', [req.user.user_id]);
+  const user = queryOne('SELECT id, username, rol, nombre_completo, sucursal_id FROM usuarios WHERE id = ?', [req.user.user_id]);
   if (!user) return res.status(404).json({ status: 'error', message: 'Usuario no encontrado' });
   res.json({ status: 'success', user });
+});
+
+router.get('/sucursales', (req, res) => {
+  try {
+    const sucursales = getSucursales();
+    res.json({ status: 'success', data: sucursales });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
 module.exports = router;

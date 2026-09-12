@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import { ChefHat, Clock, CheckCircle, Play, Bell } from 'lucide-react';
 
 export default function KDS() {
+  const { selectedSucursal } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -11,11 +13,13 @@ export default function KDS() {
     loadOrders();
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedSucursal]);
 
   const loadOrders = async () => {
     try {
-      const res = await api.get('/orders');
+      const params = {};
+      if (selectedSucursal) params.sucursal_id = selectedSucursal;
+      const res = await api.get('/orders', { params });
       setOrders(res.data.data || []);
     } catch (err) {
       console.error('Error:', err);

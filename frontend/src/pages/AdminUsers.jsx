@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import { Users, Plus, Pencil, Trash2, X, Save } from 'lucide-react';
 
 const ROLES = ['Administrador', 'Supervisor', 'Cajera', 'Cocina', 'Mesero'];
 
 export default function AdminUsers() {
+  const { sucursales } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState({ username: '', password: '', rol: 'Mesero', nombre_completo: '' });
+  const [form, setForm] = useState({ username: '', password: '', rol: 'Mesero', nombre_completo: '', sucursal_id: '' });
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -26,20 +28,20 @@ export default function AdminUsers() {
 
   const openCreate = () => {
     setEditingUser(null);
-    setForm({ username: '', password: '', rol: 'Mesero', nombre_completo: '' });
+    setForm({ username: '', password: '', rol: 'Mesero', nombre_completo: '', sucursal_id: sucursales.length > 0 ? sucursales[0].id : '' });
     setShowModal(true);
   };
 
-  const openEdit = (user) => {
-    setEditingUser(user);
-    setForm({ username: user.username, password: '', rol: user.rol, nombre_completo: user.nombre_completo });
+  const openEdit = (u) => {
+    setEditingUser(u);
+    setForm({ username: u.username, password: '', rol: u.rol, nombre_completo: u.nombre_completo, sucursal_id: u.sucursal_id || '' });
     setShowModal(true);
   };
 
   const save = async () => {
     try {
       if (editingUser) {
-        const data = { rol: form.rol, nombre_completo: form.nombre_completo };
+        const data = { rol: form.rol, nombre_completo: form.nombre_completo, sucursal_id: form.sucursal_id || null };
         if (form.password) data.password = form.password;
         await api.put(`/users/${editingUser.id}`, data);
       } else {
@@ -61,6 +63,12 @@ export default function AdminUsers() {
     } catch (err) {
       alert('Error al eliminar');
     }
+  };
+
+  const getSucursalName = (id) => {
+    if (!id) return 'Sin asignar';
+    const found = sucursales.find(s => s.id === id);
+    return found ? found.nombre : `Sucursal ${id}`;
   };
 
   if (loading) return <div className="flex items-center justify-center h-64 text-pikta-info">Cargando...</div>;
@@ -85,6 +93,7 @@ export default function AdminUsers() {
               <th className="text-left px-4 py-3">Usuario</th>
               <th className="text-left px-4 py-3">Nombre Completo</th>
               <th className="text-left px-4 py-3">Rol</th>
+              <th className="text-left px-4 py-3">Sucursal</th>
               <th className="text-right px-4 py-3">Acciones</th>
             </tr>
           </thead>
@@ -105,6 +114,7 @@ export default function AdminUsers() {
                     {u.rol}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-gray-300 text-xs">{getSucursalName(u.sucursal_id)}</td>
                 <td className="px-4 py-3 text-right">
                   <button onClick={() => openEdit(u)} className="text-pikta-info hover:text-blue-400 mr-3"><Pencil size={16} /></button>
                   <button onClick={() => deleteUser(u.id)} className="text-pikta-err hover:text-red-400"><Trash2 size={16} /></button>
@@ -145,6 +155,14 @@ export default function AdminUsers() {
                 <select value={form.rol} onChange={e => setForm({...form, rol: e.target.value})}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
                   {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Sucursal</label>
+                <select value={form.sucursal_id} onChange={e => setForm({...form, sucursal_id: e.target.value ? Number(e.target.value) : ''})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+                  <option value="">Sin asignar</option>
+                  {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                 </select>
               </div>
             </div>
