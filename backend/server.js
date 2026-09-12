@@ -34,13 +34,12 @@ async function start() {
     res.json({ status: 'success', message: "PIK'TA POS API Web funcionando", version: '1.0.0' });
   });
 
-  // Serve static frontend in production
-  if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
-    });
-  }
+  // Serve static frontend
+  const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`PIK'TA POS API Web corriendo en puerto ${PORT}`);
