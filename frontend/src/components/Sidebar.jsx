@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, ShoppingCart, ChefHat, UtensilsCrossed, Users, Package, BarChart3, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, ChefHat, UtensilsCrossed, Users, Package, BarChart3, LogOut, UtensilsCrossed as Utensils } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: null },
   { to: '/pos', icon: ShoppingCart, label: 'POS (Caja)', roles: ['Administrador', 'Supervisor', 'Cajera'] },
   { to: '/kds', icon: ChefHat, label: 'Cocina (KDS)', roles: ['Administrador', 'Supervisor', 'Cocina'] },
   { to: '/mesero', icon: UtensilsCrossed, label: 'Mesero', roles: ['Administrador', 'Supervisor', 'Mesero'] },
+  { to: '/admin/products', icon: Utensils, label: 'Productos', roles: ['Administrador'] },
   { to: '/admin/users', icon: Users, label: 'Usuarios', roles: ['Administrador'] },
   { to: '/admin/inventory', icon: Package, label: 'Inventario', roles: ['Administrador', 'Supervisor'] },
   { to: '/reports', icon: BarChart3, label: 'Reportes', roles: ['Administrador', 'Supervisor'] },

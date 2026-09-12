@@ -183,7 +183,11 @@ export default function POS() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 overflow-y-auto flex-1 pr-2">
             {filteredProducts.map(product => (
               <div key={product.id} className="bg-pikta-panel rounded-xl p-4 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer" onClick={() => addToCart(product)}>
-                <div className="text-4xl mb-2">{product.emoji || '🍽'}</div>
+                {product.imagen_url ? (
+                  <img src={`/api/images/${product.imagen_url}`} alt={product.nombre} className="w-20 h-20 rounded-xl object-cover mb-2" />
+                ) : (
+                  <div className="text-4xl mb-2">{product.emoji || '🍽'}</div>
+                )}
                 <p className="text-white text-sm font-semibold mb-1 leading-tight">{product.nombre}</p>
                 <p className="text-pikta-accent font-bold">${product.precio.toFixed(2)}</p>
                 <button className="mt-2 w-full py-1.5 bg-pikta-info text-white rounded-lg text-xs font-medium hover:bg-blue-600 transition">

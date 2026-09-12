@@ -9,6 +9,7 @@ import KDS from './pages/KDS';
 import Mesero from './pages/Mesero';
 import AdminUsers from './pages/AdminUsers';
 import AdminInventory from './pages/AdminInventory';
+import AdminProducts from './pages/AdminProducts';
 import Reports from './pages/Reports';
 
 function AppRoutes() {
@@ -42,7 +43,12 @@ function AppRoutes() {
             <Mesero />
           </ProtectedRoute>
         } />
-        <Route path="/admin/users" element={
+            <Route path="/admin/products" element={
+              <PrivateRoute roles={['Administrador']}>
+                <AdminProducts />
+              </PrivateRoute>
+            } />
+            <Route path="/admin/users" element={
           <ProtectedRoute roles={['Administrador']}>
             <AdminUsers />
           </ProtectedRoute>

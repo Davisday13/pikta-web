@@ -19,6 +19,10 @@ app.use(express.json());
 async function start() {
   await setupDb();
 
+  // Serve product images
+  const imagesDir = path.join(__dirname, 'images');
+  app.use('/api/images', express.static(imagesDir));
+
   // Routes
   app.use('/api/login', require('./routes/auth'));
   app.use('/api/auth', require('./routes/auth'));
