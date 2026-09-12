@@ -44,9 +44,9 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
             <Route path="/admin/products" element={
-              <PrivateRoute roles={['Administrador']}>
+              <ProtectedRoute roles={['Administrador']}>
                 <AdminProducts />
-              </PrivateRoute>
+              </ProtectedRoute>
             } />
             <Route path="/admin/users" element={
           <ProtectedRoute roles={['Administrador']}>
