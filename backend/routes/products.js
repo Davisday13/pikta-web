@@ -8,21 +8,8 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
-const IMAGES_DIR = path.join(__dirname, '..', 'images');
-if (!fs.existsSync(IMAGES_DIR)) {
-  fs.mkdirSync(IMAGES_DIR, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, IMAGES_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${req.params.id}${ext}`);
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
@@ -87,34 +74,22 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.post('/:id/image', (req, res) => {
-  upload.single('image')(req, res, (err) => {
-    if (err) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ status: 'error', message: 'La imagen no puede superar 5MB' });
-      }
-      return res.status(400).json({ status: 'error', message: 'Formato no permitido' });
-    }
+router.post('/:id/image', upload.single('image'), (req, res) => {
+  try {
     if (!req.file) {
       return res.status(400).json({ status: 'error', message: 'No se envió imagen' });
     }
-
-    const imagen_url = req.file.filename;
-    runSql('UPDATE productos_menu SET imagen_url = ? WHERE id = ?', [imagen_url, req.params.id]);
-    res.json({ status: 'success', message: 'Imagen subida', imagen_url });
-  });
+    const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    runSql('UPDATE productos_menu SET imagen_url = ? WHERE id = ?', [base64, req.params.id]);
+    res.json({ status: 'success', message: 'Imagen subida', imagen_url: base64 });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
 router.delete('/:id/image', (req, res) => {
   try {
-    const product = queryAll('SELECT imagen_url FROM productos_menu WHERE id = ?', [req.params.id]);
-    if (product.length && product[0].imagen_url) {
-      const filepath = path.join(IMAGES_DIR, product[0].imagen_url);
-      if (fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath);
-      }
-      runSql('UPDATE productos_menu SET imagen_url = NULL WHERE id = ?', [req.params.id]);
-    }
+    runSql('UPDATE productos_menu SET imagen_url = NULL WHERE id = ?', [req.params.id]);
     res.json({ status: 'success', message: 'Imagen eliminada' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -123,13 +98,6 @@ router.delete('/:id/image', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   try {
-    const product = queryAll('SELECT imagen_url FROM productos_menu WHERE id = ?', [req.params.id]);
-    if (product.length && product[0].imagen_url) {
-      const filepath = path.join(IMAGES_DIR, product[0].imagen_url);
-      if (fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath);
-      }
-    }
     runSql('DELETE FROM productos_menu WHERE id = ?', [req.params.id]);
     res.json({ status: 'success', message: 'Producto eliminado' });
   } catch (err) {

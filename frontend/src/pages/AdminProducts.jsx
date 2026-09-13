@@ -51,7 +51,7 @@ export default function AdminProducts() {
       sucursal_id: product.sucursal_id || 1
     });
     setSelectedImage(null);
-    setPreviewUrl(product.imagen_url ? `/api/images/${product.imagen_url}` : null);
+    setPreviewUrl(product.imagen_url || null);
     setShowModal(true);
   };
 
@@ -77,11 +77,13 @@ export default function AdminProducts() {
     const formData = new FormData();
     formData.append('image', selectedImage);
     try {
-      await api.post(`/products/${productId}/image`, formData, {
+      const res = await api.post(`/products/${productId}/image`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+      return res.data.imagen_url;
     } catch (err) {
       console.error('Error uploading image:', err);
+      return null;
     }
   };
 
@@ -108,7 +110,8 @@ export default function AdminProducts() {
         productId = res.data.id;
       }
       if (selectedImage && productId) {
-        await uploadImage(productId);
+        const newUrl = await uploadImage(productId);
+        if (newUrl) setPreviewUrl(newUrl);
       }
       setShowModal(false);
       loadProducts();
@@ -173,7 +176,7 @@ export default function AdminProducts() {
                 <tr key={p.id} className="border-t border-gray-700/50 hover:bg-gray-700/30">
                   <td className="px-4 py-3">
                     {p.imagen_url ? (
-                      <img src={`/api/images/${p.imagen_url}`} alt={p.nombre} className="w-12 h-12 rounded-lg object-cover" />
+                      <img src={p.imagen_url} alt={p.nombre} className="w-12 h-12 rounded-lg object-cover" />
                     ) : (
                       <div className="w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center text-2xl">
                         {p.emoji || '🍽'}

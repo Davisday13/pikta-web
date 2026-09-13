@@ -141,7 +141,7 @@ export default function Mesero() {
             {filteredProducts.map(product => (
               <div key={product.id} onClick={() => addToCart(product)} className="bg-pikta-panel rounded-xl p-3 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer">
                 {product.imagen_url ? (
-                  <img src={`/api/images/${product.imagen_url}`} alt={product.nombre} className="w-16 h-16 rounded-lg object-cover mb-1" />
+                  <img src={product.imagen_url} alt={product.nombre} className="w-16 h-16 rounded-lg object-cover mb-1" />
                 ) : (
                   <div className="text-3xl mb-1">{product.emoji || '🍽'}</div>
                 )}

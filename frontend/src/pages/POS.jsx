@@ -187,7 +187,7 @@ export default function POS() {
             {filteredProducts.map(product => (
               <div key={product.id} className="bg-pikta-panel rounded-xl p-4 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer" onClick={() => addToCart(product)}>
                 {product.imagen_url ? (
-                  <img src={`/api/images/${product.imagen_url}`} alt={product.nombre} className="w-20 h-20 rounded-xl object-cover mb-2" />
+                  <img src={product.imagen_url} alt={product.nombre} className="w-20 h-20 rounded-xl object-cover mb-2" />
                 ) : (
                   <div className="text-4xl mb-2">{product.emoji || '🍽'}</div>
                 )}
