@@ -3,7 +3,7 @@ services:
     name: pikta-pos-web
     runtime: node
     buildCommand: cd frontend && npm install && chmod +x node_modules/.bin/vite && npm run build && cd ../backend && npm install
-    startCommand: cd backend && node server.js
+    startCommand: cd backend && node server.js --experimental-vm-modules
     envVars:
       - key: NODE_ENV
         value: production
