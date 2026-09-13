@@ -65,7 +65,8 @@ async function setupDb() {
       disponible BOOLEAN DEFAULT 1,
       imagen_url TEXT,
       created_at TEXT,
-      prep_duration INTEGER DEFAULT 15
+      prep_duration INTEGER DEFAULT 15,
+      sucursal_id INTEGER DEFAULT 1
     )
   `);
 
@@ -230,6 +231,15 @@ async function setupDb() {
       );
     }
   }
+
+  // Migration: add sucursal_id to productos_menu if missing
+  try {
+    const cols = database.exec("PRAGMA table_info(productos_menu)");
+    if (cols.length && !cols[0].values.some(c => c[1] === 'sucursal_id')) {
+      database.run("ALTER TABLE productos_menu ADD COLUMN sucursal_id INTEGER DEFAULT 1");
+      database.run("UPDATE productos_menu SET sucursal_id = 1 WHERE sucursal_id IS NULL");
+    }
+  } catch (e) { /* ignore */ }
 
   saveDb();
   console.log('Base de datos inicializada correctamente');

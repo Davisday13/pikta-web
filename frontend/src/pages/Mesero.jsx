@@ -27,7 +27,7 @@ export default function Mesero() {
       if (effectiveSucursalId) params.sucursal_id = effectiveSucursalId;
 
       const [prodRes, catRes, ordersRes] = await Promise.all([
-        api.get('/products'),
+        api.get('/products', { params }),
         api.get('/products/categories'),
         api.get('/orders', { params })
       ]);

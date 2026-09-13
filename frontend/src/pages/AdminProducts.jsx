@@ -4,18 +4,19 @@ import { useAuth } from '../context/AuthContext';
 import { UtensilsCrossed, Plus, Pencil, Trash2, X, Save, Upload, Image } from 'lucide-react';
 
 export default function AdminProducts() {
-  const { selectedSucursal } = useAuth();
+  const { user, selectedSucursal } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [form, setForm] = useState({ nombre: '', precio: '', categoria: 'Otros', emoji: '', prep_duration: 15, descripcion: '' });
+  const [form, setForm] = useState({ nombre: '', precio: '', categoria: 'Otros', emoji: '', prep_duration: 15, descripcion: '', sucursal_id: 1 });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const fileInputRef = useRef(null);
 
   const CATEGORIAS = ['🍔 Combos', '🍟 Extras', '🥤 Bebidas', '🍰 Postres', 'Otros'];
+  const SUCURSALES = [{ id: 1, nombre: 'David' }, { id: 2, nombre: 'Boquete' }];
 
   useEffect(() => { loadProducts(); }, []);
 
@@ -32,7 +33,7 @@ export default function AdminProducts() {
 
   const openCreate = () => {
     setEditingProduct(null);
-    setForm({ nombre: '', precio: '', categoria: '🍔 Combos', emoji: '🍔', prep_duration: 15, descripcion: '' });
+    setForm({ nombre: '', precio: '', categoria: '🍔 Combos', emoji: '🍔', prep_duration: 15, descripcion: '', sucursal_id: selectedSucursal || 1 });
     setSelectedImage(null);
     setPreviewUrl(null);
     setShowModal(true);
@@ -46,7 +47,8 @@ export default function AdminProducts() {
       categoria: product.categoria || 'Otros',
       emoji: product.emoji || '',
       prep_duration: product.prep_duration || 15,
-      descripcion: product.descripcion || ''
+      descripcion: product.descripcion || '',
+      sucursal_id: product.sucursal_id || 1
     });
     setSelectedImage(null);
     setPreviewUrl(product.imagen_url ? `/api/images/${product.imagen_url}` : null);
@@ -158,6 +160,7 @@ export default function AdminProducts() {
               <tr className="text-gray-400">
                 <th className="text-left px-4 py-3">Imagen</th>
                 <th className="text-left px-4 py-3">Nombre</th>
+                <th className="text-left px-4 py-3">Sucursal</th>
                 <th className="text-left px-4 py-3">Categoría</th>
                 <th className="text-left px-4 py-3">Precio</th>
                 <th className="text-left px-4 py-3">Tiempo Prep.</th>
@@ -178,6 +181,11 @@ export default function AdminProducts() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-white font-medium">{p.nombre}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.sucursal_id === 2 ? 'bg-blue-900 text-blue-300' : 'bg-green-900 text-green-300'}`}>
+                      {SUCURSALES.find(s => s.id === p.sucursal_id)?.nombre || 'David'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-gray-300">{p.categoria}</td>
                   <td className="px-4 py-3 text-pikta-accent font-semibold">${p.precio?.toFixed(2)}</td>
                   <td className="px-4 py-3 text-gray-300">{p.prep_duration} min</td>
@@ -193,7 +201,7 @@ export default function AdminProducts() {
                 </tr>
               ))}
               {products.length === 0 && (
-                <tr><td colSpan="7" className="px-4 py-8 text-center text-gray-500">No hay productos</td></tr>
+                <tr><td colSpan="8" className="px-4 py-8 text-center text-gray-500">No hay productos</td></tr>
               )}
             </tbody>
           </table>
@@ -275,6 +283,14 @@ export default function AdminProducts() {
                 <label className="block text-sm text-gray-400 mb-1">Descripción</label>
                 <textarea value={form.descripcion} onChange={e => setForm({...form, descripcion: e.target.value})}
                   rows={2} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white resize-none" />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Sucursal</label>
+                <select value={form.sucursal_id} onChange={e => setForm({...form, sucursal_id: parseInt(e.target.value)})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+                  {SUCURSALES.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
               </div>
             </div>
 

@@ -22,8 +22,11 @@ export default function POS() {
 
   const loadData = async () => {
     try {
+      const params = {};
+      if (effectiveSucursalId) params.sucursal_id = effectiveSucursalId;
+
       const [prodRes, catRes, cashRes] = await Promise.all([
-        api.get('/products'),
+        api.get('/products', { params }),
         api.get('/products/categories'),
         api.get('/cash/active')
       ]);
