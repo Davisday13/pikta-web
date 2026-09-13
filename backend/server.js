@@ -41,9 +41,9 @@ async function start() {
   // Serve static frontend
   const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
   app.use(express.static(frontendDist));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendDist, 'index.html'));
-  });
+app.get('*', (req, res) => {
+    res.send('API is running - check /api/status');
+});
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`PIK'TA POS API Web corriendo en puerto ${PORT}`);
