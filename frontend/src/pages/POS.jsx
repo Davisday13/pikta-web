@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Delete, X } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Delete } from 'lucide-react';
 
 export default function POS() {
   const { user, selectedSucursal } = useAuth();
@@ -12,8 +12,7 @@ export default function POS() {
   const [loading, setLoading] = useState(true);
   const [cashSession, setCashSession] = useState(null);
   const [orderChannel, setOrderChannel] = useState('CAJA');
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [metodoPago, setMetodoPago] = useState('');
+  const [metodoPago, setMetodoPago] = useState('EFECTIVO');
   const [montoRecibido, setMontoRecibido] = useState('');
 
   const effectiveSucursalId = user?.rol === 'Administrador' || user?.rol === 'Supervisor'
@@ -70,33 +69,8 @@ export default function POS() {
   };
 
   const total = cart.reduce((sum, item) => sum + item.precio * item.qty, 0);
-
-  const cambio = montoRecibido ? Math.max(0, parseFloat(montoRecibido) - total) : 0;
-
-  const openCash = async () => {
-    const monto = prompt('Monto inicial en caja:');
-    if (monto === null) return;
-    try {
-      const res = await api.post('/cash/open', {
-        usuario_id: user.id,
-        monto_inicial: parseFloat(monto) || 0,
-        sucursal_id: effectiveSucursalId
-      });
-      if (res.data.sesion_id) {
-        setCashSession({ id: res.data.sesion_id });
-        alert('Caja abierta exitosamente');
-      }
-    } catch (err) {
-      alert('Error al abrir caja');
-    }
-  };
-
-  const openPaymentModal = (metodo) => {
-    if (cart.length === 0) return;
-    setMetodoPago(metodo);
-    setMontoRecibido(metodo === 'EFECTIVO' ? '' : total.toFixed(2));
-    setShowPaymentModal(true);
-  };
+  const cambio = montoRecibido && parseFloat(montoRecibido) >= total
+    ? parseFloat(montoRecibido) - total : 0;
 
   const handleNumpad = useCallback((value) => {
     setMontoRecibido(prev => {
@@ -113,9 +87,13 @@ export default function POS() {
   }, []);
 
   const processOrder = useCallback(async () => {
-    if (cart.length === 0) return;
-    if (metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total)) {
-      return alert('El monto recibido debe ser mayor o igual al total');
+    if (cart.length === 0) return alert('Agrega productos a la orden');
+    if (!cashSession) return alert('Abre la caja primero');
+
+    if (metodoPago === 'EFECTIVO') {
+      if (!montoRecibido || parseFloat(montoRecibido) < total) {
+        return alert('El monto recibido debe ser mayor o igual al total');
+      }
     }
 
     try {
@@ -143,17 +121,36 @@ export default function POS() {
       }
 
       if (metodoPago === 'EFECTIVO') {
-        alert(`Cobro exitoso\nTotal: $${total.toFixed(2)}\nRecibido: $${parseFloat(montoRecibido).toFixed(2)}\nCambio: $${(parseFloat(montoRecibido) - total).toFixed(2)}`);
+        alert(`Cobro exitoso\nTotal: $${total.toFixed(2)}\nRecibido: $${parseFloat(montoRecibido).toFixed(2)}\nCambio: $${cambio.toFixed(2)}`);
+      } else {
+        alert('Pedido procesado correctamente');
       }
 
       setCart([]);
-      setShowPaymentModal(false);
       setMontoRecibido('');
     } catch (err) {
       alert('Error al procesar pedido');
       console.error(err);
     }
-  }, [cart, total, metodoPago, montoRecibido, orderChannel, cashSession, effectiveSucursalId, user]);
+  }, [cart, total, metodoPago, montoRecibido, orderChannel, cashSession, effectiveSucursalId, user, cambio]);
+
+  const openCash = async () => {
+    const monto = prompt('Monto inicial en caja:');
+    if (monto === null) return;
+    try {
+      const res = await api.post('/cash/open', {
+        usuario_id: user.id,
+        monto_inicial: parseFloat(monto) || 0,
+        sucursal_id: effectiveSucursalId
+      });
+      if (res.data.sesion_id) {
+        setCashSession({ id: res.data.sesion_id });
+        alert('Caja abierta exitosamente');
+      }
+    } catch (err) {
+      alert('Error al abrir caja');
+    }
+  };
 
   const closeCash = async () => {
     if (!confirm('¿Cerrar caja?')) return;
@@ -169,8 +166,6 @@ export default function POS() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (!showPaymentModal) return;
-
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
         handleNumpad(e.key);
@@ -181,7 +176,7 @@ export default function POS() {
         e.preventDefault();
         handleNumpad('B');
       } else if (e.key === 'Escape') {
-        setShowPaymentModal(false);
+        handleNumpad('C');
       } else if (e.key === 'Enter') {
         e.preventDefault();
         processOrder();
@@ -190,44 +185,46 @@ export default function POS() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showPaymentModal, handleNumpad, processOrder]);
+  }, [handleNumpad, processOrder]);
 
   if (loading) return <div className="flex items-center justify-center h-64 text-pikta-info">Cargando...</div>;
 
   return (
     <div className="h-[calc(100vh-3rem)] flex flex-col">
-      <div className="bg-pikta-panel rounded-xl p-3 mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ShoppingCart className="text-pikta-accent" size={24} />
-          <h1 className="text-xl font-bold text-white">PUNTO DE VENTA</h1>
+      {/* Header */}
+      <div className="bg-pikta-panel rounded-xl p-2 mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="text-pikta-accent" size={20} />
+          <h1 className="text-lg font-bold text-white">PUNTO DE VENTA</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setOrderChannel('CAJA')} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${orderChannel === 'CAJA' ? 'bg-pikta-info text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
+          <button onClick={() => setOrderChannel('CAJA')} className={`px-3 py-1 rounded-lg text-xs font-medium transition ${orderChannel === 'CAJA' ? 'bg-pikta-info text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
             Local
           </button>
-          <button onClick={() => setOrderChannel('LLEVAR')} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${orderChannel === 'LLEVAR' ? 'bg-pikta-accent text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
+          <button onClick={() => setOrderChannel('LLEVAR')} className={`px-3 py-1 rounded-lg text-xs font-medium transition ${orderChannel === 'LLEVAR' ? 'bg-pikta-accent text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
             Llevar
           </button>
           {!cashSession ? (
-            <button onClick={openCash} className="px-3 py-1.5 bg-pikta-ok text-white rounded-lg text-sm font-medium hover:bg-green-600 transition">
+            <button onClick={openCash} className="px-3 py-1 bg-pikta-ok text-white rounded-lg text-xs font-medium hover:bg-green-600 transition">
               Abrir Caja
             </button>
           ) : (
-            <button onClick={closeCash} className="px-3 py-1.5 bg-pikta-err text-white rounded-lg text-sm font-medium hover:bg-red-600 transition">
+            <button onClick={closeCash} className="px-3 py-1 bg-pikta-err text-white rounded-lg text-xs font-medium hover:bg-red-600 transition">
               Cerrar Caja
             </button>
           )}
         </div>
       </div>
 
-      <div className="flex flex-1 gap-3 min-h-0">
+      <div className="flex flex-1 gap-2 min-h-0">
+        {/* Products */}
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex gap-1.5 mb-2 flex-wrap">
+          <div className="flex gap-1 mb-2 flex-wrap">
             {categories.map(cat => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${selectedCategory === cat ? 'bg-pikta-info text-white' : 'bg-pikta-panel text-gray-300 hover:bg-gray-600'}`}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition ${selectedCategory === cat ? 'bg-pikta-info text-white' : 'bg-pikta-panel text-gray-300 hover:bg-gray-600'}`}
               >
                 {cat}
               </button>
@@ -249,167 +246,121 @@ export default function POS() {
           </div>
         </div>
 
-        <div className="w-64 bg-pikta-panel rounded-xl flex flex-col">
-          <div className="p-3 border-b border-gray-600">
-            <h2 className="text-sm font-bold text-white">ORDEN ACTUAL</h2>
+        {/* Cart + Numpad Panel */}
+        <div className="w-80 bg-pikta-panel rounded-xl flex flex-col">
+          {/* Cart */}
+          <div className="p-2 border-b border-gray-600">
+            <h2 className="text-xs font-bold text-white">ORDEN ACTUAL</h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0" style={{ maxHeight: '40%' }}>
             {cart.length === 0 ? (
-              <p className="text-gray-500 text-center py-8 text-sm">Carrito vacío</p>
+              <p className="text-gray-500 text-center py-4 text-xs">Carrito vacío</p>
             ) : (
               cart.map(item => (
-                <div key={item.id} className="bg-gray-700/50 rounded-lg p-2 flex items-center gap-2">
+                <div key={item.id} className="bg-gray-700/50 rounded-lg p-1.5 flex items-center gap-1.5">
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-xs font-medium truncate">{item.nombre}</p>
-                    <p className="text-pikta-accent text-xs">${item.precio.toFixed(2)}</p>
+                    <p className="text-white text-[11px] font-medium truncate">{item.nombre}</p>
+                    <p className="text-pikta-accent text-[10px]">${item.precio.toFixed(2)}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500">
-                      <Minus size={12} />
+                    <button onClick={() => updateQty(item.id, -1)} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500">
+                      <Minus size={10} />
                     </button>
-                    <span className="text-white font-bold w-5 text-center text-xs">{item.qty}</span>
-                    <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500">
-                      <Plus size={12} />
+                    <span className="text-white font-bold w-4 text-center text-[11px]">{item.qty}</span>
+                    <button onClick={() => updateQty(item.id, 1)} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500">
+                      <Plus size={10} />
                     </button>
                   </div>
-                  <p className="text-white font-semibold text-xs w-14 text-right">${(item.precio * item.qty).toFixed(2)}</p>
+                  <p className="text-white font-semibold text-[11px] w-12 text-right">${(item.precio * item.qty).toFixed(2)}</p>
                   <button onClick={() => removeFromCart(item.id)} className="text-pikta-err hover:text-red-400">
-                    <Trash2 size={14} />
+                    <Trash2 size={12} />
                   </button>
                 </div>
               ))
             )}
           </div>
 
-          <div className="p-3 border-t border-gray-600">
-            <div className="flex justify-between items-center mb-3">
+          {/* Total */}
+          <div className="px-3 py-2 border-t border-gray-600">
+            <div className="flex justify-between items-center">
               <span className="text-sm font-bold text-white">TOTAL:</span>
               <span className="text-xl font-bold text-pikta-accent">${total.toFixed(2)}</span>
             </div>
-
-            <div className="grid grid-cols-3 gap-1.5">
-              <button
-                onClick={() => openPaymentModal('EFECTIVO')}
-                disabled={cart.length === 0}
-                className="py-2 bg-pikta-ok text-white rounded-lg font-medium hover:bg-green-600 transition disabled:opacity-50 flex flex-col items-center gap-0.5"
-              >
-                <Banknote size={16} />
-                <span className="text-[10px]">Efectivo</span>
-              </button>
-              <button
-                onClick={() => openPaymentModal('YAPPY')}
-                disabled={cart.length === 0}
-                className="py-2 bg-pikta-info text-white rounded-lg font-medium hover:bg-blue-600 transition disabled:opacity-50 flex flex-col items-center gap-0.5"
-              >
-                <Smartphone size={16} />
-                <span className="text-[10px]">Yappy</span>
-              </button>
-              <button
-                onClick={() => openPaymentModal('TARJETA')}
-                disabled={cart.length === 0}
-                className="py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 flex flex-col items-center gap-0.5"
-              >
-                <CreditCard size={16} />
-                <span className="text-[10px]">Tarjeta</span>
-              </button>
-            </div>
           </div>
-        </div>
-      </div>
 
-      {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowPaymentModal(false)}>
-          <div className="bg-pikta-panel rounded-2xl p-6 w-[400px] shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-lg font-bold text-white">
-                {metodoPago === 'EFECTIVO' ? 'COBRO EN EFECTIVO' : metodoPago === 'YAPPY' ? 'COBRO POR YAPPY' : 'COBRO CON TARJETA'}
-              </h2>
-              <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-white">
-                <X size={22} />
+          {/* Numpad */}
+          <div className="px-3 py-2 border-t border-gray-600">
+            {/* Payment method selector */}
+            <div className="flex gap-1 mb-2">
+              <button onClick={() => setMetodoPago('EFECTIVO')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'EFECTIVO' ? 'bg-pikta-ok text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+                <Banknote size={12} /> Efectivo
+              </button>
+              <button onClick={() => setMetodoPago('YAPPY')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'YAPPY' ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+                <Smartphone size={12} /> Yappy
+              </button>
+              <button onClick={() => setMetodoPago('TARJETA')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'TARJETA' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+                <CreditCard size={12} /> Tarjeta
               </button>
             </div>
 
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-gray-400 text-sm">TOTAL:</span>
-              <span className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</span>
-            </div>
-
-            <div className="bg-gray-800 rounded-lg p-2 mb-4 max-h-[120px] overflow-y-auto">
-              {cart.map(item => (
-                <div key={item.id} className="flex justify-between items-center py-1 border-b border-gray-700 last:border-0">
-                  <span className="text-white text-xs">{item.qty}x {item.nombre}</span>
-                  <span className="text-pikta-accent text-xs font-semibold">${(item.precio * item.qty).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-
-            {metodoPago === 'EFECTIVO' && (
+            {metodoPago === 'EFECTIVO' ? (
               <>
-                <div className="mb-4 bg-gray-800 rounded-xl p-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-400 text-sm">RECIBIDO:</span>
-                    <span className="text-xl font-bold text-white">${montoRecibido || '0.00'}</span>
+                {/* Received / Change display */}
+                <div className="bg-gray-800 rounded-lg p-2 mb-2 flex justify-between">
+                  <div className="text-center">
+                    <p className="text-[9px] text-gray-400">RECIBIDO</p>
+                    <p className="text-base font-bold text-white">${montoRecibido || '0.00'}</p>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400 text-sm">CAMBIO:</span>
-                    <span className={`text-xl font-bold ${cambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${cambio.toFixed(2)}</span>
+                  <div className="text-center">
+                    <p className="text-[9px] text-gray-400">CAMBIO</p>
+                    <p className={`text-base font-bold ${cambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${cambio.toFixed(2)}</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 mb-4">
+                {/* Numpad Grid */}
+                <div className="grid grid-cols-4 gap-1">
                   {[7,8,9].map(n => (
-                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-12 rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-9 rounded-lg text-sm font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
                   ))}
-                  <button onClick={() => handleNumpad('B')} className="h-12 rounded-xl text-xl font-bold bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30 active:scale-95 transition flex items-center justify-center"><Delete size={20} /></button>
+                  <button onClick={() => handleNumpad('B')} className="h-9 rounded-lg bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30 active:scale-95 transition flex items-center justify-center"><Delete size={14} /></button>
 
                   {[4,5,6].map(n => (
-                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-12 rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-9 rounded-lg text-sm font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
                   ))}
-                  <div />
+                  <button onClick={() => handleNumpad('C')} className="h-9 rounded-lg text-[10px] font-bold bg-gray-600 text-gray-300 hover:bg-gray-500 active:scale-95 transition">CE</button>
 
                   {[1,2,3].map(n => (
-                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-12 rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-9 rounded-lg text-sm font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
                   ))}
                   <div />
 
-                  <button onClick={() => handleNumpad('0')} className="h-12 rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">0</button>
-                  <button onClick={() => handleNumpad('.')} className="h-12 rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">.</button>
-                  <button onClick={() => handleNumpad('C')} className="h-12 rounded-xl text-sm font-bold bg-gray-600 text-gray-300 hover:bg-gray-500 active:scale-95 transition">CE</button>
+                  <button onClick={() => handleNumpad('0')} className="h-9 rounded-lg text-sm font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition col-span-2">0</button>
+                  <button onClick={() => handleNumpad('.')} className="h-9 rounded-lg text-sm font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">.</button>
                   <div />
                 </div>
               </>
-            )}
-
-            {metodoPago !== 'EFECTIVO' && (
-              <div className="mb-4 text-center py-4">
-                <p className="text-gray-400 text-sm mb-2">El cliente debe pagar exactamente</p>
-                <p className="text-3xl font-bold text-pikta-accent">${total.toFixed(2)}</p>
+            ) : (
+              <div className="text-center py-3">
+                <p className="text-gray-400 text-[10px]">El cliente paga exactamente</p>
+                <p className="text-lg font-bold text-pikta-accent">${total.toFixed(2)}</p>
               </div>
             )}
+          </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="flex-1 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500 transition"
-              >
-                CANCELAR
-              </button>
-              <button
-                onClick={processOrder}
-                disabled={metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total)}
-                className="flex-1 py-3 bg-pikta-ok text-white rounded-lg font-bold text-lg hover:bg-green-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {metodoPago === 'EFECTIVO' ? `COBRAR` : 'CONFIRMAR'}
-              </button>
-            </div>
-
-            {metodoPago === 'EFECTIVO' && (
-              <p className="text-center text-gray-500 text-xs mt-2">Teclado numérico de la PC también funciona</p>
-            )}
+          {/* Pay Button */}
+          <div className="px-3 pb-3">
+            <button
+              onClick={processOrder}
+              disabled={cart.length === 0 || !cashSession || (metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total))}
+              className="w-full py-3 bg-pikta-ok text-white rounded-xl font-bold text-lg hover:bg-green-600 transition disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
+            >
+              {metodoPago === 'EFECTIVO' ? `COBRAR $${total.toFixed(2)}` : 'CONFIRMAR PAGO'}
+            </button>
+            <p className="text-center text-gray-500 text-[9px] mt-1">Teclado numérico de la PC también funciona</p>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
