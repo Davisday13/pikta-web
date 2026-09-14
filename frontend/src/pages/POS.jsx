@@ -183,26 +183,23 @@ export default function POS() {
           </div>
 
           {/* Products Grid */}
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 overflow-y-auto flex-1 pr-2">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 overflow-y-auto flex-1 pr-2 content-start">
             {filteredProducts.map(product => (
-              <div key={product.id} className="bg-pikta-panel rounded-lg p-2 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer" onClick={() => addToCart(product)}>
+              <div key={product.id} className="bg-pikta-panel rounded-lg p-1.5 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer min-h-[90px]" onClick={() => addToCart(product)}>
                 {product.imagen_url ? (
-                  <img src={product.imagen_url} alt={product.nombre} className="w-14 h-14 rounded-lg object-cover mb-1" />
+                  <img src={product.imagen_url} alt={product.nombre} className="w-10 h-10 rounded object-cover mb-0.5" />
                 ) : (
-                  <div className="text-2xl mb-1">{product.emoji || '🍽'}</div>
+                  <div className="text-lg mb-0.5 leading-none">{product.emoji || '🍽'}</div>
                 )}
-                <p className="text-white text-xs font-semibold leading-tight">{product.nombre}</p>
-                <p className="text-pikta-accent text-xs font-bold">${product.precio.toFixed(2)}</p>
-                <button className="mt-1 w-full py-1 bg-pikta-info text-white rounded text-xs font-medium hover:bg-blue-600 transition">
-                  +
-                </button>
+                <p className="text-white text-[10px] font-semibold leading-tight truncate w-full">{product.nombre}</p>
+                <p className="text-pikta-accent text-[10px] font-bold">${product.precio.toFixed(2)}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Cart Panel */}
-        <div className="w-96 bg-pikta-panel rounded-xl flex flex-col">
+        <div className="w-72 bg-pikta-panel rounded-xl flex flex-col">
           <div className="p-4 border-b border-gray-600">
             <h2 className="text-lg font-bold text-white">ORDEN ACTUAL</h2>
           </div>
