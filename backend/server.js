@@ -32,6 +32,7 @@ async function start() {
   app.use('/api/users', require('./routes/users'));
   app.use('/api/cash', require('./routes/cash'));
   app.use('/api/reports', require('./routes/reports'));
+  app.use('/api/print', require('./routes/print'));
 
   // Health check
   app.get('/api/status', (req, res) => {

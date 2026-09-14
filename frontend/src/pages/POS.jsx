@@ -95,9 +95,11 @@ export default function POS() {
 
     try {
       const items = cart.map(item => ({
-        id: item.id, nombre: item.nombre, precio: item.precio, qty: item.qty
+        id: item.id, nombre: item.nombre, precio: item.precio, qty: item.qty,
+        cantidad: item.qty, precio_unitario: item.precio
       }));
 
+      let orderId = null;
       if (orderChannel === 'CAJA') {
         await api.post('/orders', {
           items, total, canal: 'CAJA', mesa: 'VENTA DIRECTA',
@@ -107,14 +109,42 @@ export default function POS() {
         const ordersRes = await api.get('/orders');
         const latest = ordersRes.data.data?.[0];
         if (latest) {
+          orderId = latest.id;
           await api.post(`/orders/${latest.id}/pay`, { metodo_pago: metodoPago, sesion_id: cashSession?.id });
         }
       } else {
-        await api.post('/orders', {
+        const res = await api.post('/orders', {
           items, total, canal: 'LLEVAR', mesa: 'PARA LLEVAR',
           usuario_id: user.id, sesion_id: cashSession?.id,
           sucursal_id: effectiveSucursalId
         });
+        orderId = res.data?.order_id;
+      }
+
+      // Auto-print kitchen ticket
+      try {
+        await api.post('/print/kitchen', {
+          order_id: orderId || `POS-${Date.now()}`,
+          canal: orderChannel === 'LLEVAR' ? 'LLEVAR' : 'CAJA',
+          items, total
+        });
+      } catch (printErr) {
+        console.warn('Print server no disponible:', printErr.message);
+      }
+
+      // Auto-print receipt for cash payments
+      if (metodoPago === 'EFECTIVO') {
+        try {
+          await api.post('/print/receipt', {
+            order_id: orderId || `POS-${Date.now()}`,
+            canal: orderChannel,
+            items, total, metodo_pago: metodoPago,
+            monto_recibido: parseFloat(montoRecibido),
+            cambio
+          });
+        } catch (printErr) {
+          console.warn('Print server no disponible:', printErr.message);
+        }
       }
 
       if (metodoPago === 'EFECTIVO') {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { ChefHat, Clock, CheckCircle, Play, Bell } from 'lucide-react';
+import { ChefHat, Clock, CheckCircle, Play, Bell, Printer } from 'lucide-react';
 
 export default function KDS() {
   const { selectedSucursal } = useAuth();
@@ -45,6 +45,20 @@ export default function KDS() {
     const mins = Math.floor(diff / 60);
     const secs = diff % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const reprintTicket = async (order) => {
+    try {
+      const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+      await api.post('/print/kitchen', {
+        order_id: order.numero || order.id,
+        canal: order.canal,
+        items, total: order.total
+      });
+      alert('Ticket reimpreso');
+    } catch (err) {
+      alert('Error al imprimir: ' + (err.response?.data?.message || err.message));
+    }
   };
 
   const getStatusColor = (status, prepStart) => {
@@ -139,6 +153,13 @@ export default function KDS() {
                 </div>
 
                 <div className="flex gap-2">
+                  <button
+                    onClick={() => reprintTicket(order)}
+                    className="py-2 px-3 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-1 transition"
+                    title="Re-imprimir ticket"
+                  >
+                    <Printer size={14} />
+                  </button>
                   {order.estado === 'RECIBIDO' && (
                     <button
                       onClick={() => updateStatus(order.id, 'PREPARANDO')}
