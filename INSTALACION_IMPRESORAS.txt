@@ -1,0 +1,176 @@
+╔══════════════════════════════════════════════════════════════╗
+║         PIK'TA POS - INSTALACIÓN DE IMPRESORAS              ║
+║         Impresoras Xprinter XP-80C por Red                  ║
+╚══════════════════════════════════════════════════════════════╝
+
+REQUISITOS PREVIOS:
+  - Node.js instalado (https://nodejs.org)
+  - Impresoras Xprinter XP-80C encendidas y en la misma red
+  - ngrok instalado (https://ngrok.com/download)
+
+IPs DE LAS IMPRESORAS:
+  - Cocina:  192.168.123.200
+  - Caja:    192.168.123.100
+  - Puerto:  9100 (estándar ESC/POS)
+
+
+═══════════════════════════════════════════════════════════════
+  PASO 1: INSTALAR NGROK
+═══════════════════════════════════════════════════════════════
+
+  1. Ir a https://ngrok.com/download
+  2. Descargar ngrok para Windows
+  3. Descomprimir ngrok.exe en C:\Users\USUARIO\ ngrok\
+
+
+═══════════════════════════════════════════════════════════════
+  PASO 2: INICIAR EL SERVIDOR DE IMPRESIÓN
+═══════════════════════════════════════════════════════════════
+
+  1. Abrir una terminal (cmd o PowerShell)
+  2. Ejecutar:
+
+     cd C:\Users\USUARIO\pikta-print-server
+     npm install
+     node server.js
+
+  3. Deberías ver:
+
+     ╔══════════════════════════════════════╗
+     ║   PIK'TA Print Server v1.0           ║
+     ║   Puerto: 3001                        ║
+     ╠══════════════════════════════════════╣
+     ║  Cocina:  192.168.123.200:9100       ║
+     ║  Caja:    192.168.123.100:9100       ║
+     ╚══════════════════════════════════════╝
+
+  NO CERRAR ESTA TERMINAL.
+
+
+═══════════════════════════════════════════════════════════════
+  PASO 3: EXponer EL SERVIDOR CON NGROK
+═══════════════════════════════════════════════════════════════
+
+  1. Abrir OTRA terminal (distinta a la del paso 2)
+  2. Ir a la carpeta donde está ngrok.exe
+  3. Ejecutar:
+
+     ngrok http 3001
+
+  4. Verás algo como:
+
+     Forwarding   https://abc123.ngrok.io → http://localhost:3001
+
+  5. COPIAR la URL de https (ejemplo: https://abc123.ngrok.io)
+
+  NOTA: Cada vez que reinicies ngrok, la URL CAMBIA.
+        Si cambia, hay que actualizarla en Render (Paso 4).
+
+  NO CERRAR ESTA TERMINAL.
+
+
+═══════════════════════════════════════════════════════════════
+  PASO 4: CONFIGURAR EN RENDER
+═══════════════════════════════════════════════════════════════
+
+  1. Ir a https://render.com
+  2. Seleccionar el servicio "pikta-web"
+  3. Ir a Environment (panel izquierdo)
+  4. Agregar variable:
+
+     Key:   PRINT_SERVER_URL
+     Value: https://abc123.ngrok.io  (la URL de ngrok)
+
+  5. Dar "Save, rebuild, and deploy"
+
+
+═══════════════════════════════════════════════════════════════
+  PASO 5: PROBAR LA IMPRESIÓN
+═══════════════════════════════════════════════════════════════
+
+  1. Abrir https://pikta-web.onrender.com
+  2. Ir a POS (Caja)
+  3. Agregar productos al carrito
+  4. Dar a Efectivo/Yappy/Tarjeta
+  5. Completar el cobro
+  6. DEBERÍA IMPRIMIR EL TICKET EN COCINA
+
+  Para re-imprimir desde cocina:
+  1. Ir a Cocina (KDS)
+  2. Dar clic en el botón 🖨️ del pedido
+
+
+═══════════════════════════════════════════════════════════════
+  SOLUCIÓN DE PROBLEMAS
+═══════════════════════════════════════════════════════════════
+
+  PROBLEMA: No imprime
+  SOLUCIÓN:
+  1. Verificar que las impresoras estén encendidas
+  2. Verificar que el print server esté corriendo (terminal del paso 2)
+  3. Verificar que ngrok esté corriendo (terminal del paso 3)
+  4. Verificar que la URL de ngrok sea la correcta en Render
+  5. Probar la conexión: abrir http://localhost:3001/health en el navegador
+
+  PROBLEMA: ngrok muestra "Session Expired"
+  SOLUCIÓN: Cerrar ngrok y volver a ejecutar "ngrok http 3001"
+            Actualizar la URL en Render
+
+  PROBLEMA: Error "ECONNREFUSED" en los logs de Render
+  SOLUCIÓN: El print server no está corriendo o ngrok no está activo
+            Verificar pasos 2 y 3
+
+  PROBLEMA: La impresora no responde
+  SOLUCIÓN:
+  1. Verificar que la IP de la impresora sea correcta
+  2. Hacer ping a la impresora: ping 192.168.123.200
+  3. Verificar que estén en la misma red
+  4. Reiniciar la impresora
+
+
+═══════════════════════════════════════════════════════════════
+  ARCHIVOS DEL SISTEMA
+═══════════════════════════════════════════════════════════════
+
+  Servidor de impresión local:
+    C:\Users\USUARIO\pikta-print-server\
+    ├── server.js      (servidor HTTP en puerto 3001)
+    ├── printer.js     (comandos ESC/POS a impresoras)
+    └── package.json
+
+  Backend de Render:
+    backend/routes/print.js  (rutas de impresión)
+    backend/server.js        (incluye /api/print)
+
+  Frontend:
+    frontend/src/pages/POS.jsx   (impresión automática al cobrar)
+    frontend/src/pages/KDS.jsx   (botón re-imprimir en cocina)
+
+
+═══════════════════════════════════════════════════════════════
+  INICIAR AUTOMÁATICAMENTE AL ENCENDER LA PC (OPCIONAL)
+═══════════════════════════════════════════════════════════════
+
+  Para que el print server arranque solo al encender la PC:
+
+  1. Crear archivo "iniciar-pikta.bat" en el escritorio:
+
+     @echo off
+     cd C:\Users\USUARIO\pikta-print-server
+     node server.js
+     pause
+
+  2. Presionar Win+R, escribir: shell:startup
+  3. Copiar un acceso directo de "iniciar-pikta.bat" ahí
+
+  Para ngrok automático, crear "iniciar-ngrok.bat":
+
+     @echo off
+     cd C:\Users\USUARIO\ngrok
+     ngrok http 3001
+     pause
+
+  Y copiar su acceso directo en shell:startup también.
+
+  IMPORTANTE: Ambos programas deben estar corriendo para que
+  la impresión funcione.
