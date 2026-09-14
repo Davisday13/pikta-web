@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Delete, X } from 'lucide-react';
 
 export default function POS() {
   const { user, selectedSucursal } = useAuth();
@@ -11,8 +11,10 @@ export default function POS() {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cashSession, setCashSession] = useState(null);
-  const [showPayModal, setShowPayModal] = useState(false);
   const [orderChannel, setOrderChannel] = useState('CAJA');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [metodoPago, setMetodoPago] = useState('');
+  const [montoRecibido, setMontoRecibido] = useState('');
 
   const effectiveSucursalId = user?.rol === 'Administrador' || user?.rol === 'Supervisor'
     ? (selectedSucursal || user?.sucursal_id)
@@ -69,6 +71,8 @@ export default function POS() {
 
   const total = cart.reduce((sum, item) => sum + item.precio * item.qty, 0);
 
+  const cambio = montoRecibido ? Math.max(0, parseFloat(montoRecibido) - total) : 0;
+
   const openCash = async () => {
     const monto = prompt('Monto inicial en caja:');
     if (monto === null) return;
@@ -87,8 +91,32 @@ export default function POS() {
     }
   };
 
-  const processOrder = async (metodoPago) => {
-    if (cart.length === 0) return alert('El carrito está vacío');
+  const openPaymentModal = (metodo) => {
+    if (cart.length === 0) return;
+    setMetodoPago(metodo);
+    setMontoRecibido(metodo === 'EFECTIVO' ? '' : total.toFixed(2));
+    setShowPaymentModal(true);
+  };
+
+  const handleNumpad = (value) => {
+    setMontoRecibido(prev => {
+      if (value === 'C') return '';
+      if (value === 'B') return prev.slice(0, -1);
+      if (value === '.') {
+        if (prev.includes('.')) return prev;
+        return prev === '' ? '0.' : prev + '.';
+      }
+      if (prev.includes('.') && prev.split('.')[1].length >= 2) return prev;
+      if (prev === '0' && value !== '.') return value;
+      return prev + value;
+    });
+  };
+
+  const processOrder = async () => {
+    if (cart.length === 0) return;
+    if (metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total)) {
+      return alert('El monto recibido debe ser mayor o igual al total');
+    }
 
     try {
       const items = cart.map(item => ({
@@ -114,9 +142,13 @@ export default function POS() {
         });
       }
 
+      if (metodoPago === 'EFECTIVO') {
+        alert(`Cobro exitoso\nTotal: $${total.toFixed(2)}\nRecibido: $${parseFloat(montoRecibido).toFixed(2)}\nCambio: $${cambio.toFixed(2)}`);
+      }
+
       setCart([]);
-      setShowPayModal(false);
-      alert('Pedido procesado correctamente');
+      setShowPaymentModal(false);
+      setMontoRecibido('');
     } catch (err) {
       alert('Error al procesar pedido');
       console.error(err);
@@ -134,6 +166,27 @@ export default function POS() {
       alert('Error al cerrar caja');
     }
   };
+
+  const handleKeyDown = useCallback((e) => {
+    if (!showPaymentModal) return;
+
+    if (e.key >= '0' && e.key <= '9') {
+      handleNumpad(e.key);
+    } else if (e.key === '.') {
+      handleNumpad('.');
+    } else if (e.key === 'Backspace') {
+      handleNumpad('B');
+    } else if (e.key === 'Escape') {
+      setShowPaymentModal(false);
+    } else if (e.key === 'Enter') {
+      processOrder();
+    }
+  }, [showPaymentModal, montoRecibido, total, cart, metodoPago, orderChannel, cashSession, effectiveSucursalId, cambio]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   if (loading) return <div className="flex items-center justify-center h-64 text-pikta-info">Cargando...</div>;
 
@@ -240,7 +293,7 @@ export default function POS() {
 
             <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={() => processOrder('EFECTIVO')}
+                onClick={() => openPaymentModal('EFECTIVO')}
                 disabled={cart.length === 0}
                 className="py-3 bg-pikta-ok text-white rounded-lg font-medium hover:bg-green-600 transition disabled:opacity-50 flex flex-col items-center gap-1"
               >
@@ -248,7 +301,7 @@ export default function POS() {
                 <span className="text-xs">Efectivo</span>
               </button>
               <button
-                onClick={() => processOrder('YAPPY')}
+                onClick={() => openPaymentModal('YAPPY')}
                 disabled={cart.length === 0}
                 className="py-3 bg-pikta-info text-white rounded-lg font-medium hover:bg-blue-600 transition disabled:opacity-50 flex flex-col items-center gap-1"
               >
@@ -256,7 +309,7 @@ export default function POS() {
                 <span className="text-xs">Yappy</span>
               </button>
               <button
-                onClick={() => processOrder('TARJETA')}
+                onClick={() => openPaymentModal('TARJETA')}
                 disabled={cart.length === 0}
                 className="py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 flex flex-col items-center gap-1"
               >
@@ -267,6 +320,99 @@ export default function POS() {
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowPaymentModal(false)}>
+          <div className="bg-pikta-panel rounded-2xl p-6 w-[420px] shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-white">
+                {metodoPago === 'EFECTIVO' ? 'COBRO EN EFECTIVO' : metodoPago === 'YAPPY' ? 'COBRO POR YAPPY' : 'COBRO CON TARJETA'}
+              </h2>
+              <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-gray-400">TOTAL:</span>
+                <span className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {metodoPago === 'EFECTIVO' && (
+              <>
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-gray-400">RECIBIDO:</span>
+                    <span className="text-xl font-bold text-white">${montoRecibido || '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">CAMBIO:</span>
+                    <span className={`text-xl font-bold ${cambio > 0 ? 'text-pikta-ok' : 'text-gray-400'}`}>${cambio.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* On-screen Numpad */}
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  {[
+                    { val: '7', label: '7' }, { val: '8', label: '8' }, { val: '9', label: '9' },
+                    { val: 'B', label: '⌫', icon: <Delete size={18} /> },
+                    { val: '4', label: '4' }, { val: '5', label: '5' }, { val: '6', label: '6' },
+                    { val: '', label: '' },
+                    { val: '1', label: '1' }, { val: '2', label: '2' }, { val: '3', label: '3' },
+                    { val: '', label: '' },
+                    { val: '0', label: '0' }, { val: '.', label: '.' }, { val: 'C', label: 'CE' },
+                    { val: '', label: '' },
+                  ].map((btn, i) => (
+                    btn.val === '' ? <div key={i} /> : (
+                      <button
+                        key={i}
+                        onClick={() => handleNumpad(btn.val)}
+                        className={`h-12 rounded-lg text-lg font-bold transition active:scale-95 ${
+                          btn.val === 'B' ? 'bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30' :
+                          btn.val === 'C' ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' :
+                          'bg-gray-700 text-white hover:bg-gray-600'
+                        }`}
+                      >
+                        {btn.icon || btn.label}
+                      </button>
+                    )
+                  ))}
+                </div>
+              </>
+            )}
+
+            {metodoPago !== 'EFECTIVO' && (
+              <div className="mb-4 text-center">
+                <p className="text-gray-400 text-sm">El cliente debe pagar exactamente</p>
+                <p className="text-3xl font-bold text-pikta-accent">${total.toFixed(2)}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="flex-1 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500 transition"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={processOrder}
+                disabled={metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total)}
+                className="flex-1 py-3 bg-pikta-ok text-white rounded-lg font-bold text-lg hover:bg-green-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {metodoPago === 'EFECTIVO' ? `COBRAR $${cambio >= 0 && montoRecibido ? (parseFloat(montoRecibido)).toFixed(2) : '0.00'}` : 'CONFIRMAR'}
+              </button>
+            </div>
+
+            {metodoPago === 'EFECTIVO' && (
+              <p className="text-center text-gray-500 text-xs mt-2">Usa el teclado numérico de la PC o haz clic en los botones</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
