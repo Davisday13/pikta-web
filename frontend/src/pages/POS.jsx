@@ -330,11 +330,18 @@ export default function POS() {
               </button>
             </div>
 
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-400 text-sm">TOTAL:</span>
-                <span className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</span>
-              </div>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-gray-400 text-sm">TOTAL:</span>
+              <span className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</span>
+            </div>
+
+            <div className="bg-gray-800 rounded-lg p-2 mb-4 max-h-[120px] overflow-y-auto">
+              {cart.map(item => (
+                <div key={item.id} className="flex justify-between items-center py-1 border-b border-gray-700 last:border-0">
+                  <span className="text-white text-xs">{item.qty}x {item.nombre}</span>
+                  <span className="text-pikta-accent text-xs font-semibold">${(item.precio * item.qty).toFixed(2)}</span>
+                </div>
+              ))}
             </div>
 
             {metodoPago === 'EFECTIVO' && (
