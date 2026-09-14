@@ -188,35 +188,100 @@ export default function POS() {
 
   return (
     <div className="h-[calc(100vh-3rem)] flex flex-col">
-      {/* Header */}
-      <div className="bg-pikta-panel rounded-xl p-3 mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ShoppingCart className="text-pikta-accent" size={24} />
-          <h1 className="text-xl font-bold text-white">PUNTO DE VENTA</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setOrderChannel('CAJA')} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${orderChannel === 'CAJA' ? 'bg-pikta-info text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
-            Local
-          </button>
-          <button onClick={() => setOrderChannel('LLEVAR')} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${orderChannel === 'LLEVAR' ? 'bg-pikta-accent text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
-            Llevar
-          </button>
-          {!cashSession ? (
-            <button onClick={openCash} className="px-3 py-1.5 bg-pikta-ok text-white rounded-lg text-sm font-medium hover:bg-green-600 transition">
-              Abrir Caja
-            </button>
-          ) : (
-            <button onClick={closeCash} className="px-3 py-1.5 bg-pikta-err text-white rounded-lg text-sm font-medium hover:bg-red-600 transition">
-              Cerrar Caja
-            </button>
-          )}
-        </div>
-      </div>
+      <div className="flex flex-1 gap-2 min-h-0">
 
-      <div className="flex flex-1 gap-3 min-h-0">
-        {/* Products */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex gap-2 mb-3 flex-wrap">
+        {/* LEFT SIDE: Order Detail */}
+        <div className="w-[45%] bg-pikta-panel rounded-xl flex flex-col">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-gray-600 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="text-pikta-accent" size={18} />
+              <h2 className="text-sm font-bold text-white">ORDEN ACTUAL</h2>
+            </div>
+            <div className="flex gap-1.5">
+              <button onClick={() => setOrderChannel('CAJA')} className={`px-3 py-1 rounded text-xs font-medium transition ${orderChannel === 'CAJA' ? 'bg-pikta-info text-white' : 'bg-gray-600 text-gray-300'}`}>
+                Local
+              </button>
+              <button onClick={() => setOrderChannel('LLEVAR')} className={`px-3 py-1 rounded text-xs font-medium transition ${orderChannel === 'LLEVAR' ? 'bg-pikta-accent text-white' : 'bg-gray-600 text-gray-300'}`}>
+                Llevar
+              </button>
+              {!cashSession ? (
+                <button onClick={openCash} className="px-3 py-1 bg-pikta-ok text-white rounded text-xs font-medium">Abrir Caja</button>
+              ) : (
+                <button onClick={closeCash} className="px-3 py-1 bg-pikta-err text-white rounded text-xs font-medium">Cerrar Caja</button>
+              )}
+            </div>
+          </div>
+
+          {/* Table Header */}
+          <div className="grid grid-cols-[1fr_60px_80px_70px_30px] gap-1 px-4 py-2 bg-gray-800 text-xs font-bold text-gray-400">
+            <span>Producto</span>
+            <span className="text-center">Cant.</span>
+            <span className="text-right">Precio</span>
+            <span className="text-right">Subtotal</span>
+            <span></span>
+          </div>
+
+          {/* Table Body */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {cart.length === 0 ? (
+              <p className="text-gray-500 text-center py-12 text-sm">Agrega productos</p>
+            ) : (
+              cart.map((item, idx) => (
+                <div key={item.id} className={`grid grid-cols-[1fr_60px_80px_70px_30px] gap-1 px-4 py-2.5 items-center text-sm border-b border-gray-700/50 ${idx % 2 === 0 ? 'bg-gray-800/30' : ''}`}>
+                  <span className="text-white font-medium truncate">{item.nombre}</span>
+                  <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => updateQty(item.id, -1)} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 text-[10px]">
+                      <Minus size={10} />
+                    </button>
+                    <span className="text-white font-bold w-4 text-center">{item.qty}</span>
+                    <button onClick={() => updateQty(item.id, 1)} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 text-[10px]">
+                      <Plus size={10} />
+                    </button>
+                  </div>
+                  <span className="text-gray-300 text-right">${item.precio.toFixed(2)}</span>
+                  <span className="text-pikta-accent font-bold text-right">${(item.precio * item.qty).toFixed(2)}</span>
+                  <button onClick={() => removeFromCart(item.id)} className="text-pikta-err hover:text-red-400 flex justify-center">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Total + Payment buttons */}
+          <div className="px-4 py-3 border-t border-gray-600">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-lg font-bold text-white">TOTAL:</span>
+              <span className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <button onClick={() => setMetodoPago('EFECTIVO')} className={`py-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'EFECTIVO' ? 'bg-pikta-ok text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+                <Banknote size={14} /> Efectivo
+              </button>
+              <button onClick={() => setMetodoPago('YAPPY')} className={`py-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'YAPPY' ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+                <Smartphone size={14} /> Yappy
+              </button>
+              <button onClick={() => setMetodoPago('TARJETA')} className={`py-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'TARJETA' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+                <CreditCard size={14} /> Tarjeta
+              </button>
+            </div>
+
+            <button
+              onClick={processOrder}
+              disabled={cart.length === 0 || !cashSession || (metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total))}
+              className="w-full py-3 bg-pikta-ok text-white rounded-lg font-bold text-lg hover:bg-green-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {metodoPago === 'EFECTIVO' ? `COBRAR $${total.toFixed(2)}` : 'CONFIRMAR PAGO'}
+            </button>
+          </div>
+        </div>
+
+        {/* RIGHT SIDE: Products + Numpad */}
+        <div className="flex-1 flex flex-col gap-2 min-h-0">
+          {/* Category Tabs */}
+          <div className="flex gap-2 flex-wrap">
             {categories.map(cat => (
               <button
                 key={cat}
@@ -228,7 +293,8 @@ export default function POS() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 overflow-y-auto flex-1 items-start pr-1">
+          {/* Products Grid */}
+          <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 overflow-y-auto flex-1 items-start">
             {filteredProducts.map(product => (
               <div key={product.id} className="bg-pikta-panel rounded-xl p-3 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer" onClick={() => addToCart(product)}>
                 {product.imagen_url ? (
@@ -241,125 +307,51 @@ export default function POS() {
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Right Panel - Split in two equal halves */}
-        <div className="w-[500px] flex gap-3">
-          {/* Left half: Order details */}
-          <div className="flex-1 bg-pikta-panel rounded-xl flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-600">
-              <h2 className="text-sm font-bold text-white">DETALLE DE ORDEN</h2>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 min-h-0">
-              {cart.length === 0 ? (
-                <p className="text-gray-500 text-center py-8 text-sm">Carrito vacío</p>
-              ) : (
-                cart.map(item => (
-                  <div key={item.id} className="bg-gray-700/50 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-white text-sm font-medium truncate flex-1">{item.nombre}</p>
-                      <button onClick={() => removeFromCart(item.id)} className="text-pikta-err hover:text-red-400 ml-2">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => updateQty(item.id, -1)} className="w-8 h-8 rounded-lg bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500">
-                          <Minus size={14} />
-                        </button>
-                        <span className="text-white font-bold w-6 text-center text-base">{item.qty}</span>
-                        <button onClick={() => updateQty(item.id, 1)} className="w-8 h-8 rounded-lg bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500">
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                      <p className="text-pikta-accent font-bold text-base">${(item.precio * item.qty).toFixed(2)}</p>
-                    </div>
+          {/* Numpad Bar at bottom */}
+          <div className="bg-pikta-panel rounded-xl p-3">
+            {metodoPago === 'EFECTIVO' ? (
+              <div className="flex gap-3 items-stretch">
+                {/* Recibido / Cambio */}
+                <div className="bg-gray-800 rounded-xl p-3 flex flex-col justify-center min-w-[120px]">
+                  <div className="mb-1">
+                    <p className="text-[10px] text-gray-400">RECIBIDO</p>
+                    <p className="text-lg font-bold text-white">${montoRecibido || '0.00'}</p>
                   </div>
-                ))
-              )}
-            </div>
-
-            {/* Total + Pay */}
-            <div className="px-4 py-3 border-t border-gray-600">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-base font-bold text-white">TOTAL:</span>
-                <span className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</span>
-              </div>
-              <button
-                onClick={processOrder}
-                disabled={cart.length === 0 || !cashSession || (metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total))}
-                className="w-full py-4 bg-pikta-ok text-white rounded-xl font-bold text-xl hover:bg-green-600 transition disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
-              >
-                {metodoPago === 'EFECTIVO' ? `COBRAR` : 'CONFIRMAR PAGO'}
-              </button>
-              <p className="text-center text-gray-500 text-xs mt-2">Teclado numérico de la PC también funciona</p>
-            </div>
-          </div>
-
-          {/* Right half: Numpad */}
-          <div className="flex-1 bg-pikta-panel rounded-xl flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-600">
-              <h2 className="text-sm font-bold text-white">COBRO</h2>
-            </div>
-
-            <div className="flex-1 flex flex-col px-4 py-3">
-              {/* Payment method selector */}
-              <div className="flex gap-2 mb-4">
-                <button onClick={() => setMetodoPago('EFECTIVO')} className={`flex-1 py-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 ${metodoPago === 'EFECTIVO' ? 'bg-pikta-ok text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
-                  <Banknote size={14} /> Efectivo
-                </button>
-                <button onClick={() => setMetodoPago('YAPPY')} className={`flex-1 py-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 ${metodoPago === 'YAPPY' ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
-                  <Smartphone size={14} /> Yappy
-                </button>
-                <button onClick={() => setMetodoPago('TARJETA')} className={`flex-1 py-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 ${metodoPago === 'TARJETA' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
-                  <CreditCard size={14} /> Tarjeta
-                </button>
-              </div>
-
-              {metodoPago === 'EFECTIVO' ? (
-                <>
-                  {/* Received / Change display */}
-                  <div className="bg-gray-800 rounded-xl p-4 mb-4 flex justify-between">
-                    <div className="text-center">
-                      <p className="text-xs text-gray-400 mb-1">RECIBIDO</p>
-                      <p className="text-xl font-bold text-white">${montoRecibido || '0.00'}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-400 mb-1">CAMBIO</p>
-                      <p className={`text-xl font-bold ${cambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${cambio.toFixed(2)}</p>
-                    </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400">CAMBIO</p>
+                    <p className={`text-lg font-bold ${cambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${cambio.toFixed(2)}</p>
                   </div>
-
-                  {/* Numpad Grid */}
-                  <div className="grid grid-cols-4 gap-2.5 flex-1">
-                    {[7,8,9].map(n => (
-                      <button key={n} onClick={() => handleNumpad(String(n))} className="rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
-                    ))}
-                    <button onClick={() => handleNumpad('B')} className="rounded-xl bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30 active:scale-95 transition flex items-center justify-center"><Delete size={20} /></button>
-
-                    {[4,5,6].map(n => (
-                      <button key={n} onClick={() => handleNumpad(String(n))} className="rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
-                    ))}
-                    <button onClick={() => handleNumpad('C')} className="rounded-xl text-sm font-bold bg-gray-600 text-gray-300 hover:bg-gray-500 active:scale-95 transition">CE</button>
-
-                    {[1,2,3].map(n => (
-                      <button key={n} onClick={() => handleNumpad(String(n))} className="rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
-                    ))}
-                    <div />
-
-                    <button onClick={() => handleNumpad('0')} className="rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition col-span-2">0</button>
-                    <button onClick={() => handleNumpad('.')} className="rounded-xl text-xl font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">.</button>
-                    <div />
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center">
-                  <p className="text-gray-400 text-sm mb-2">El cliente paga exactamente</p>
-                  <p className="text-3xl font-bold text-pikta-accent">${total.toFixed(2)}</p>
                 </div>
-              )}
-            </div>
+
+                {/* Numpad */}
+                <div className="flex-1 grid grid-cols-4 gap-1.5">
+                  {[7,8,9].map(n => (
+                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                  ))}
+                  <button onClick={() => handleNumpad('B')} className="h-11 rounded-lg bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30 active:scale-95 transition flex items-center justify-center"><Delete size={16} /></button>
+
+                  {[4,5,6].map(n => (
+                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                  ))}
+                  <button onClick={() => handleNumpad('C')} className="h-11 rounded-lg text-xs font-bold bg-gray-600 text-gray-300 hover:bg-gray-500 active:scale-95 transition">CE</button>
+
+                  {[1,2,3].map(n => (
+                    <button key={n} onClick={() => handleNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                  ))}
+                  <div />
+
+                  <button onClick={() => handleNumpad('0')} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition col-span-2">0</button>
+                  <button onClick={() => handleNumpad('.')} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">.</button>
+                  <div />
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between px-4">
+                <p className="text-gray-400 text-sm">El cliente paga exactamente:</p>
+                <p className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
