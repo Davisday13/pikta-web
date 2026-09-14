@@ -5,3 +5,6 @@ dist/
 .DS_Store
 Thumbs.db
 backend/.env
+test_image.png
+token.txt
+backend/images/
