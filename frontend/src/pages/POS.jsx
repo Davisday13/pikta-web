@@ -183,18 +183,18 @@ export default function POS() {
           </div>
 
           {/* Products Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 overflow-y-auto flex-1 pr-2">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 overflow-y-auto flex-1 pr-2">
             {filteredProducts.map(product => (
-              <div key={product.id} className="bg-pikta-panel rounded-xl p-4 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer" onClick={() => addToCart(product)}>
+              <div key={product.id} className="bg-pikta-panel rounded-lg p-2 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer" onClick={() => addToCart(product)}>
                 {product.imagen_url ? (
-                  <img src={product.imagen_url} alt={product.nombre} className="w-20 h-20 rounded-xl object-cover mb-2" />
+                  <img src={product.imagen_url} alt={product.nombre} className="w-14 h-14 rounded-lg object-cover mb-1" />
                 ) : (
-                  <div className="text-4xl mb-2">{product.emoji || '🍽'}</div>
+                  <div className="text-2xl mb-1">{product.emoji || '🍽'}</div>
                 )}
-                <p className="text-white text-sm font-semibold mb-1 leading-tight">{product.nombre}</p>
-                <p className="text-pikta-accent font-bold">${product.precio.toFixed(2)}</p>
-                <button className="mt-2 w-full py-1.5 bg-pikta-info text-white rounded-lg text-xs font-medium hover:bg-blue-600 transition">
-                  Agregar
+                <p className="text-white text-xs font-semibold leading-tight">{product.nombre}</p>
+                <p className="text-pikta-accent text-xs font-bold">${product.precio.toFixed(2)}</p>
+                <button className="mt-1 w-full py-1 bg-pikta-info text-white rounded text-xs font-medium hover:bg-blue-600 transition">
+                  +
                 </button>
               </div>
             ))}
