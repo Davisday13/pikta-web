@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Delete } from 'lucide-react';
+import ReceiptModal from '../components/ReceiptModal';
 
 export default function POS() {
   const { user, selectedSucursal } = useAuth();
@@ -14,6 +15,7 @@ export default function POS() {
   const [orderChannel, setOrderChannel] = useState('CAJA');
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
   const [montoRecibido, setMontoRecibido] = useState('');
+  const [receiptData, setReceiptData] = useState(null);
 
   const effectiveSucursalId = user?.rol === 'Administrador' || user?.rol === 'Supervisor'
     ? (selectedSucursal || user?.sucursal_id)
@@ -147,11 +149,15 @@ export default function POS() {
         }
       }
 
-      if (metodoPago === 'EFECTIVO') {
-        alert(`Cobro exitoso\nTotal: $${total.toFixed(2)}\nRecibido: $${parseFloat(montoRecibido).toFixed(2)}\nCambio: $${cambio.toFixed(2)}`);
-      } else {
-        alert('Pedido procesado correctamente');
-      }
+      // Show receipt modal
+      setReceiptData({
+        order_id: orderId || `POS-${Date.now()}`,
+        canal: orderChannel,
+        items, total, metodo_pago: metodoPago,
+        monto_recibido: metodoPago === 'EFECTIVO' ? parseFloat(montoRecibido) : total,
+        cambio: metodoPago === 'EFECTIVO' ? cambio : 0,
+        created_at: new Date().toISOString()
+      });
 
       setCart([]);
       setMontoRecibido('');
@@ -385,6 +391,10 @@ export default function POS() {
           </div>
         </div>
       </div>
+
+      {receiptData && (
+        <ReceiptModal order={receiptData} onClose={() => setReceiptData(null)} />
+      )}
     </div>
   );
 }
