@@ -234,7 +234,7 @@ export default function POS() {
             ))}
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-1.5 overflow-y-auto flex-1 min-h-[150px] pr-1">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-1.5 overflow-y-auto flex-1 min-h-[150px] items-start pr-1">
             {filteredProducts.map(product => (
               <div key={product.id} className="bg-pikta-panel rounded-lg p-1 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer" onClick={() => addToCart(product)}>
                 {product.imagen_url ? (
