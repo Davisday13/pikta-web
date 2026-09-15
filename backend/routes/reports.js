@@ -17,14 +17,14 @@ function buildSucursalFilter(req, tableAlias = '') {
   return { where: '', params: [] };
 }
 
-router.get('/sales', (req, res) => {
+router.get('/sales', async (req, res) => {
   try {
     const { fecha } = req.query;
     const filter = buildSucursalFilter(req);
     let query = "SELECT * FROM pedidos WHERE pagado = true";
     const params = [];
     if (fecha) {
-      query += " AND created_at LIKE ?";
+      query += " AND created_at ILIKE ?";
       params.push(`${fecha}%`);
     }
     if (filter.where) {
@@ -32,7 +32,7 @@ router.get('/sales', (req, res) => {
       params.push(...filter.params);
     }
     query += " ORDER BY created_at DESC";
-    const orders = queryAll(query, params);
+    const orders = await queryAll(query, params);
 
     const totalVentas = orders.reduce((s, o) => s + (o.total || 0), 0);
     const efectivo = orders.filter(o => o.metodo_pago === 'EFECTIVO').reduce((s, o) => s + (o.total || 0), 0);
@@ -56,14 +56,14 @@ router.get('/sales', (req, res) => {
   }
 });
 
-router.get('/daily-summary', (req, res) => {
+router.get('/daily-summary', async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
     const filter = buildSucursalFilter(req);
 
-    const orderStats = queryAll(`SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM pedidos WHERE pagado = true AND created_at LIKE ? ${filter.where}`, [`${today}%`, ...filter.params]);
-    const activeOrders = queryAll(`SELECT COUNT(*) as count FROM pedidos WHERE estado NOT IN ('COBRADO', 'ENTREGADO', 'CANCELADO') ${filter.where}`, filter.params);
-    const lowStock = queryAll(`SELECT COUNT(*) as count FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0 ${filter.where}`, filter.params);
+    const orderStats = await queryAll(`SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM pedidos WHERE pagado = true AND created_at ILIKE ? ${filter.where}`, [`${today}%`, ...filter.params]);
+    const activeOrders = await queryAll(`SELECT COUNT(*) as count FROM pedidos WHERE estado NOT IN ('COBRADO', 'ENTREGADO', 'CANCELADO') ${filter.where}`, filter.params);
+    const lowStock = await queryAll(`SELECT COUNT(*) as count FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0 ${filter.where}`, filter.params);
 
     res.json({
       status: 'success',

@@ -17,22 +17,22 @@ function buildSucursalFilter(req, tableAlias = '') {
   return { where: '', params: [] };
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const filter = buildSucursalFilter(req);
-    const items = queryAll(`SELECT * FROM inventario WHERE 1=1 ${filter.where} ORDER BY id DESC`, filter.params);
+    const items = await queryAll(`SELECT * FROM inventario WHERE 1=1 ${filter.where} ORDER BY id DESC`, filter.params);
     res.json({ status: 'success', data: items });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { ingrediente, cantidad, unidad, stock_minimo, costo_unitario } = req.body;
     if (!ingrediente) return res.status(400).json({ status: 'error', message: 'Nombre del ingrediente requerido' });
 
-    const result = runSql(
+    const result = await runSql(
       'INSERT INTO inventario (ingrediente, cantidad, unidad, stock_minimo, costo_unitario, sucursal_id) VALUES (?, ?, ?, ?, ?, ?)',
       [ingrediente, cantidad || 0, unidad || 'unidad', stock_minimo || 0, costo_unitario || 0, req.user.sucursal_id]
     );
@@ -42,10 +42,10 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { cantidad, stock_minimo, costo_unitario, unidad } = req.body;
-    runSql(
+    await runSql(
       'UPDATE inventario SET cantidad=?, stock_minimo=?, costo_unitario=?, unidad=?, updated_at=? WHERE id=?',
       [cantidad, stock_minimo, costo_unitario, unidad, new Date().toISOString(), req.params.id]
     );
@@ -55,19 +55,19 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    runSql('DELETE FROM inventario WHERE id = ?', [req.params.id]);
+    await runSql('DELETE FROM inventario WHERE id = ?', [req.params.id]);
     res.json({ status: 'success', message: 'Item eliminado' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-router.get('/low-stock', (req, res) => {
+router.get('/low-stock', async (req, res) => {
   try {
     const filter = buildSucursalFilter(req);
-    const items = queryAll(`SELECT * FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0 ${filter.where}`, filter.params);
+    const items = await queryAll(`SELECT * FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0 ${filter.where}`, filter.params);
     res.json({ status: 'success', data: items });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });

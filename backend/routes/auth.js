@@ -7,14 +7,14 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pikta_web_secret_key_2026';
 const JWT_EXPIRES = '24h';
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ status: 'error', message: 'Usuario y contraseña requeridos' });
     }
 
-    const user = queryOne('SELECT * FROM usuarios WHERE username = ?', [username]);
+    const user = await queryOne('SELECT * FROM usuarios WHERE username = ?', [username]);
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.status(401).json({ status: 'error', message: 'Usuario o contraseña incorrectos' });
     }
@@ -33,15 +33,19 @@ router.post('/', (req, res) => {
   }
 });
 
-router.get('/me', require('../middleware/auth').authMiddleware, (req, res) => {
-  const user = queryOne('SELECT id, username, rol, nombre_completo, sucursal_id FROM usuarios WHERE id = ?', [req.user.user_id]);
-  if (!user) return res.status(404).json({ status: 'error', message: 'Usuario no encontrado' });
-  res.json({ status: 'success', user });
+router.get('/me', require('../middleware/auth').authMiddleware, async (req, res) => {
+  try {
+    const user = await queryOne('SELECT id, username, rol, nombre_completo, sucursal_id FROM usuarios WHERE id = ?', [req.user.user_id]);
+    if (!user) return res.status(404).json({ status: 'error', message: 'Usuario no encontrado' });
+    res.json({ status: 'success', user });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
-router.get('/sucursales', (req, res) => {
+router.get('/sucursales', async (req, res) => {
   try {
-    const sucursales = getSucursales();
+    const sucursales = await getSucursales();
     res.json({ status: 'success', data: sucursales });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });

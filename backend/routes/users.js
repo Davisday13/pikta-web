@@ -18,17 +18,26 @@ function buildSucursalFilter(req, tableAlias = '') {
   return { where: '', params: [] };
 }
 
-router.get('/', (req, res) => {
+router.get('/sucursales', async (req, res) => {
+  try {
+    const sucursales = await getSucursales();
+    res.json({ status: 'success', data: sucursales });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+router.get('/', async (req, res) => {
   try {
     const filter = buildSucursalFilter(req);
-    const users = queryAll(`SELECT id, username, rol, nombre_completo, sucursal_id FROM usuarios WHERE 1=1 ${filter.where}`, filter.params);
+    const users = await queryAll(`SELECT id, username, rol, nombre_completo, sucursal_id FROM usuarios WHERE 1=1 ${filter.where}`, filter.params);
     res.json({ status: 'success', data: users });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-router.post('/', adminOnly, (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
   try {
     const { username, password, rol, nombre_completo, sucursal_id } = req.body;
     if (!username || !password) {
@@ -36,7 +45,7 @@ router.post('/', adminOnly, (req, res) => {
     }
 
     const hashed = bcrypt.hashSync(password, 10);
-    const result = runSql(
+    const result = await runSql(
       'INSERT INTO usuarios (username, password, rol, nombre_completo, sucursal_id) VALUES (?, ?, ?, ?, ?)',
       [username, hashed, rol || 'Mesero', nombre_completo || username, sucursal_id || 1]
     );
@@ -46,16 +55,16 @@ router.post('/', adminOnly, (req, res) => {
   }
 });
 
-router.put('/:id', adminOnly, (req, res) => {
+router.put('/:id', adminOnly, async (req, res) => {
   try {
     const { rol, nombre_completo, password, sucursal_id } = req.body;
 
     if (password) {
       const hashed = bcrypt.hashSync(password, 10);
-      runSql('UPDATE usuarios SET rol=?, nombre_completo=?, password=?, sucursal_id=? WHERE id=?',
+      await runSql('UPDATE usuarios SET rol=?, nombre_completo=?, password=?, sucursal_id=? WHERE id=?',
         [rol, nombre_completo, hashed, sucursal_id, req.params.id]);
     } else {
-      runSql('UPDATE usuarios SET rol=?, nombre_completo=?, sucursal_id=? WHERE id=?',
+      await runSql('UPDATE usuarios SET rol=?, nombre_completo=?, sucursal_id=? WHERE id=?',
         [rol, nombre_completo, sucursal_id, req.params.id]);
     }
     res.json({ status: 'success', message: 'Usuario actualizado' });
@@ -64,19 +73,10 @@ router.put('/:id', adminOnly, (req, res) => {
   }
 });
 
-router.delete('/:id', adminOnly, (req, res) => {
+router.delete('/:id', adminOnly, async (req, res) => {
   try {
-    runSql('DELETE FROM usuarios WHERE id = ?', [req.params.id]);
+    await runSql('DELETE FROM usuarios WHERE id = ?', [req.params.id]);
     res.json({ status: 'success', message: 'Usuario eliminado' });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-});
-
-router.get('/sucursales', (req, res) => {
-  try {
-    const sucursales = getSucursales();
-    res.json({ status: 'success', data: sucursales });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

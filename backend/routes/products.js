@@ -37,14 +37,14 @@ function uploadToCloudinary(file) {
   });
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { sucursal_id } = req.query;
     let products;
     if (sucursal_id) {
-      products = queryAll('SELECT * FROM productos_menu WHERE sucursal_id = ? ORDER BY id DESC', [sucursal_id]);
+      products = await queryAll('SELECT * FROM productos_menu WHERE sucursal_id = ? ORDER BY id DESC', [sucursal_id]);
     } else {
-      products = queryAll('SELECT * FROM productos_menu ORDER BY id DESC');
+      products = await queryAll('SELECT * FROM productos_menu ORDER BY id DESC');
     }
     res.json({ status: 'success', data: products });
   } catch (err) {
@@ -52,22 +52,22 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/categories', (req, res) => {
+router.get('/categories', async (req, res) => {
   try {
-    const cats = queryAll('SELECT DISTINCT categoria FROM productos_menu WHERE categoria IS NOT NULL');
+    const cats = await queryAll('SELECT DISTINCT categoria FROM productos_menu WHERE categoria IS NOT NULL');
     res.json({ status: 'success', data: cats.map(c => c.categoria) });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { nombre, precio, categoria, emoji, prep_duration, descripcion, sucursal_id } = req.body;
     if (!nombre || precio === undefined) {
       return res.status(400).json({ status: 'error', message: 'Nombre y precio son requeridos' });
     }
-    const result = runSql(
+    const result = await runSql(
       'INSERT INTO productos_menu (nombre, descripcion, precio, categoria, emoji, prep_duration, disponible, sucursal_id) VALUES (?, ?, ?, ?, ?, ?, true, ?)',
       [nombre, descripcion || '', precio, categoria || 'Otros', emoji || '', prep_duration || 15, sucursal_id || req.user?.sucursal_id || 1]
     );
@@ -77,13 +77,13 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { nombre, precio, categoria, emoji, prep_duration, disponible, descripcion, sucursal_id } = req.body;
-    const existing = queryAll('SELECT disponible FROM productos_menu WHERE id = ?', [req.params.id]);
+    const existing = await queryAll('SELECT disponible FROM productos_menu WHERE id = ?', [req.params.id]);
     const currentDisponible = existing.length ? existing[0].disponible : true;
     const newDisponible = disponible !== undefined ? (disponible ? true : false) : currentDisponible;
-    runSql(
+    await runSql(
       'UPDATE productos_menu SET nombre=?, precio=?, categoria=?, emoji=?, prep_duration=?, disponible=?, descripcion=?, sucursal_id=? WHERE id=?',
       [nombre, precio, categoria || 'Otros', emoji || '', prep_duration || 15, newDisponible, descripcion || '', sucursal_id || 1, req.params.id]
     );
@@ -104,25 +104,25 @@ router.post('/:id/image', upload.single('image'), async (req, res) => {
     }
 
     const imageUrl = await uploadToCloudinary(req.file);
-    runSql('UPDATE productos_menu SET imagen_url = ? WHERE id = ?', [imageUrl, req.params.id]);
+    await runSql('UPDATE productos_menu SET imagen_url = ? WHERE id = ?', [imageUrl, req.params.id]);
     res.json({ status: 'success', message: 'Imagen subida', imagen_url: imageUrl });
   } catch (err) {
     res.status(500).json({ status: 'error', message: 'Error al subir imagen: ' + err.message });
   }
 });
 
-router.delete('/:id/image', (req, res) => {
+router.delete('/:id/image', async (req, res) => {
   try {
-    runSql('UPDATE productos_menu SET imagen_url = NULL WHERE id = ?', [req.params.id]);
+    await runSql('UPDATE productos_menu SET imagen_url = NULL WHERE id = ?', [req.params.id]);
     res.json({ status: 'success', message: 'Imagen eliminada' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    runSql('DELETE FROM productos_menu WHERE id = ?', [req.params.id]);
+    await runSql('DELETE FROM productos_menu WHERE id = ?', [req.params.id]);
     res.json({ status: 'success', message: 'Producto eliminado' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
