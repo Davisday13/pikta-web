@@ -68,7 +68,7 @@ router.post('/', (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Nombre y precio son requeridos' });
     }
     const result = runSql(
-      'INSERT INTO productos_menu (nombre, descripcion, precio, categoria, emoji, prep_duration, disponible, sucursal_id) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
+      'INSERT INTO productos_menu (nombre, descripcion, precio, categoria, emoji, prep_duration, disponible, sucursal_id) VALUES (?, ?, ?, ?, ?, ?, true, ?)',
       [nombre, descripcion || '', precio, categoria || 'Otros', emoji || '', prep_duration || 15, sucursal_id || req.user?.sucursal_id || 1]
     );
     res.status(201).json({ status: 'success', message: 'Producto creado', id: result.lastInsertRowid });
@@ -81,8 +81,8 @@ router.put('/:id', (req, res) => {
   try {
     const { nombre, precio, categoria, emoji, prep_duration, disponible, descripcion, sucursal_id } = req.body;
     const existing = queryAll('SELECT disponible FROM productos_menu WHERE id = ?', [req.params.id]);
-    const currentDisponible = existing.length ? existing[0].disponible : 1;
-    const newDisponible = disponible !== undefined ? (disponible ? 1 : 0) : currentDisponible;
+    const currentDisponible = existing.length ? existing[0].disponible : true;
+    const newDisponible = disponible !== undefined ? (disponible ? true : false) : currentDisponible;
     runSql(
       'UPDATE productos_menu SET nombre=?, precio=?, categoria=?, emoji=?, prep_duration=?, disponible=?, descripcion=?, sucursal_id=? WHERE id=?',
       [nombre, precio, categoria || 'Otros', emoji || '', prep_duration || 15, newDisponible, descripcion || '', sucursal_id || 1, req.params.id]

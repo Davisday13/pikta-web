@@ -21,7 +21,7 @@ router.get('/sales', (req, res) => {
   try {
     const { fecha } = req.query;
     const filter = buildSucursalFilter(req);
-    let query = "SELECT * FROM pedidos WHERE pagado = 1";
+    let query = "SELECT * FROM pedidos WHERE pagado = true";
     const params = [];
     if (fecha) {
       query += " AND created_at LIKE ?";
@@ -61,7 +61,7 @@ router.get('/daily-summary', (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const filter = buildSucursalFilter(req);
 
-    const orderStats = queryAll(`SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM pedidos WHERE pagado = 1 AND created_at LIKE ? ${filter.where}`, [`${today}%`, ...filter.params]);
+    const orderStats = queryAll(`SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM pedidos WHERE pagado = true AND created_at LIKE ? ${filter.where}`, [`${today}%`, ...filter.params]);
     const activeOrders = queryAll(`SELECT COUNT(*) as count FROM pedidos WHERE estado NOT IN ('COBRADO', 'ENTREGADO', 'CANCELADO') ${filter.where}`, filter.params);
     const lowStock = queryAll(`SELECT COUNT(*) as count FROM inventario WHERE cantidad <= stock_minimo AND stock_minimo > 0 ${filter.where}`, filter.params);
 

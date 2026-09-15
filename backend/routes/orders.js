@@ -34,7 +34,7 @@ router.get('/', (req, res) => {
 router.get('/pending', (req, res) => {
   try {
     const filter = buildSucursalFilter(req);
-    const orders = queryAll(`SELECT * FROM pedidos WHERE pagado = 0 AND canal IN ('MESERO', 'LLEVAR', 'Móvil') ${filter.where} ORDER BY created_at DESC`, filter.params);
+    const orders = queryAll(`SELECT * FROM pedidos WHERE pagado = false AND canal IN ('MESERO', 'LLEVAR', 'Móvil') ${filter.where} ORDER BY created_at DESC`, filter.params);
     const parsed = orders.map(o => {
       try { o.items = JSON.parse(o.items); } catch(e) {}
       return o;
@@ -49,7 +49,7 @@ router.get('/history', (req, res) => {
   try {
     const { search, fecha } = req.query;
     const filter = buildSucursalFilter(req);
-    let query = 'SELECT * FROM pedidos WHERE pagado = 1';
+    let query = 'SELECT * FROM pedidos WHERE pagado = true';
     const params = [];
 
     if (search) {
@@ -110,7 +110,7 @@ router.put('/:id', (req, res) => {
       runSql('UPDATE pedidos SET metodo_pago = ? WHERE id = ?', [metodo_pago, req.params.id]);
     }
     if (pagado !== undefined) {
-      runSql('UPDATE pedidos SET pagado = ? WHERE id = ?', [pagado ? 1 : 0, req.params.id]);
+      runSql('UPDATE pedidos SET pagado = ? WHERE id = ?', [pagado ? true : false, req.params.id]);
     }
     if (sesion_id !== undefined) {
       runSql('UPDATE pedidos SET sesion_id = ? WHERE id = ?', [sesion_id, req.params.id]);
@@ -144,7 +144,7 @@ router.post('/:id/extras', (req, res) => {
 router.post('/:id/pay', (req, res) => {
   try {
     const { metodo_pago, sesion_id } = req.body;
-    runSql('UPDATE pedidos SET pagado = 1, metodo_pago = ?, sesion_id = ? WHERE id = ?',
+    runSql('UPDATE pedidos SET pagado = true, metodo_pago = ?, sesion_id = ? WHERE id = ?',
       [metodo_pago || 'EFECTIVO', sesion_id || null, req.params.id]);
     res.json({ status: 'success', message: 'Pedido cobrado' });
   } catch (err) {

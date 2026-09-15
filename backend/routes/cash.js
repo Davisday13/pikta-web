@@ -48,7 +48,7 @@ router.post('/close', (req, res) => {
       sid = open.id;
     }
 
-    const rows = queryAll('SELECT numero, total, metodo_pago, created_at FROM pedidos WHERE sesion_id = ? AND pagado = 1', [sid]);
+    const rows = queryAll('SELECT numero, total, metodo_pago, created_at FROM pedidos WHERE sesion_id = ? AND pagado = true', [sid]);
     const sumEfectivo = rows.filter(r => r.metodo_pago === 'EFECTIVO').reduce((s, r) => s + (r.total || 0), 0);
     const sumOtros = rows.filter(r => r.metodo_pago !== 'EFECTIVO').reduce((s, r) => s + (r.total || 0), 0);
     const sumTotal = sumEfectivo + sumOtros;
@@ -112,7 +112,7 @@ router.get('/history/:id', (req, res) => {
 
     if (!session) return res.status(404).json({ status: 'error', message: 'Sesión no encontrada' });
 
-    const tickets = queryAll('SELECT numero, total, metodo_pago, created_at FROM pedidos WHERE sesion_id = ? AND pagado = 1', [req.params.id]);
+    const tickets = queryAll('SELECT numero, total, metodo_pago, created_at FROM pedidos WHERE sesion_id = ? AND pagado = true', [req.params.id]);
     res.json({ status: 'success', sesion: session, tickets });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
