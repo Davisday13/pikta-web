@@ -31,17 +31,6 @@ export default function POS() {
 
   useEffect(() => { loadData(); }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Enter' && canCharge && !receiptData) {
-        e.preventDefault();
-        processOrder();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canCharge, receiptData, processOrder]);
-
   const loadData = async () => {
     try {
       const params = {};
