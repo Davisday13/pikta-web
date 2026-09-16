@@ -52,6 +52,19 @@ router.get('/pending', async (req, res) => {
       try { o.items = JSON.parse(o.items); } catch(e) {}
       return o;
     });
+
+    for (const order of parsed) {
+      try {
+        const extras = await queryAll('SELECT * FROM pedido_extras WHERE pedido_id = ? ORDER BY id ASC', [order.id]);
+        order.extras = extras.map(e => {
+          try { e.items = JSON.parse(e.items); } catch(err) {}
+          return e;
+        });
+      } catch(e) {
+        order.extras = [];
+      }
+    }
+
     res.json({ status: 'success', data: parsed });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });

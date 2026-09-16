@@ -491,10 +491,12 @@ export default function POS() {
                 ) : (
                   pendingOrders.map(order => {
                     const items = Array.isArray(order.items) ? order.items : [];
+                    const extras = Array.isArray(order.extras) ? order.extras : [];
                     const isExpanded = selectedOrder?.id === order.id;
+                    const allExtrasItems = extras.flatMap(e => Array.isArray(e.items) ? e.items : []);
                     return (
                       <div key={order.id} className={`mx-3 mb-2 rounded-xl border transition ${isExpanded ? 'border-pikta-accent' : 'border-gray-700 hover:border-gray-500'}`}>
-                        {/* Order Header (always visible) */}
+                        {/* Order Header */}
                         <div
                           onClick={() => {
                             if (isExpanded) {
@@ -507,105 +509,109 @@ export default function POS() {
                               setShowExtraProducts(false);
                             }
                           }}
-                          className="px-4 py-3 flex items-center justify-between cursor-pointer"
+                          className="px-4 py-2.5 flex items-center justify-between cursor-pointer"
                         >
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-bold text-white font-mono">{order.numero}</span>
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-600 text-gray-300 font-medium">{order.canal}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-600 text-gray-300">{order.mesa}</span>
                             </div>
-                            <p className="text-xs text-gray-400 mt-0.5">{order.mesa} • {order.created_at ? new Date(order.created_at).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' }) : ''}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">{order.created_at ? new Date(order.created_at).toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' }) : ''}</p>
                           </div>
                           <span className="text-lg font-bold text-pikta-accent">${order.total?.toFixed(2)}</span>
                         </div>
 
-                        {/* Expanded View */}
+                        {/* Items always visible */}
+                        <div className="px-4 pb-2">
+                          <div className="space-y-0.5">
+                            {items.map((item, idx) => (
+                              <div key={`orig-${idx}`} className="flex justify-between items-center text-[13px]">
+                                <span className="text-gray-300">{item.qty || item.cantidad}x {item.nombre}</span>
+                                <span className="text-gray-400">${((item.precio || item.precio_unitario || 0) * (item.qty || item.cantidad || 1)).toFixed(2)}</span>
+                              </div>
+                            ))}
+                            {allExtrasItems.map((item, idx) => (
+                              <div key={`ext-${idx}`} className="flex justify-between items-center text-[13px]">
+                                <span className="text-pikta-warn">{item.qty || item.cantidad || 1}x {item.nombre} <span className="text-[10px]">(extra)</span></span>
+                                <span className="text-pikta-warn">${((item.precio || item.precio_unitario || 0) * (item.qty || item.cantidad || 1)).toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Expanded: Add extras + Payment */}
                         {isExpanded && (
-                          <div className="px-4 pb-4 border-t border-gray-600 pt-3">
-                            {/* Items */}
-                            <div className="space-y-1 mb-2">
-                              {items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm">
-                                  <span className="text-gray-300">{item.qty || item.cantidad}x {item.nombre}</span>
-                                  <span className="text-gray-400">${((item.precio || item.precio_unitario || 0) * (item.qty || item.cantidad || 1)).toFixed(2)}</span>
-                                </div>
-                              ))}
-                            </div>
-
+                          <div className="px-4 pb-4 border-t border-gray-700 pt-3">
                             {/* Add Extra Products */}
-                            <div className="mt-3 mb-3">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setShowExtraProducts(!showExtraProducts); }}
-                                className="w-full py-2 bg-pikta-accent/20 text-pikta-accent border border-pikta-accent/40 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-pikta-accent/30 transition"
-                              >
-                                <Plus size={14} /> Agregar Producto Extra
-                              </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setShowExtraProducts(!showExtraProducts); }}
+                              className="w-full py-2 bg-pikta-accent/20 text-pikta-accent border border-pikta-accent/40 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-pikta-accent/30 transition mb-3"
+                            >
+                              <Plus size={14} /> {showExtraProducts ? 'Cerrar Productos' : 'Agregar Producto Extra'}
+                            </button>
 
-                              {showExtraProducts && (
-                                <div className="mt-2 bg-gray-800 rounded-xl p-3">
-                                  <div className="flex gap-1.5 flex-wrap mb-2">
-                                    {categories.map(cat => (
-                                      <button
-                                        key={cat}
-                                        onClick={(e) => { e.stopPropagation(); setExtraCategory(cat); }}
-                                        className={`px-3 py-1 rounded text-[11px] font-medium transition ${extraCategory === cat ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
-                                      >
-                                        {cat}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto">
-                                    {filteredExtraProducts.map(p => (
-                                      <button
-                                        key={p.id}
-                                        onClick={(e) => { e.stopPropagation(); addToExtraCart(p); }}
-                                        className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 rounded-lg px-2 py-1.5 text-left transition"
-                                      >
-                                        <span className="text-sm">{p.emoji || '🍽'}</span>
-                                        <div className="min-w-0">
-                                          <p className="text-white text-[11px] font-medium truncate">{p.nombre}</p>
-                                          <p className="text-pikta-accent text-[10px] font-bold">${p.precio.toFixed(2)}</p>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-
-                                  {/* Extra Cart */}
-                                  {extraCart.length > 0 && (
-                                    <div className="mt-2 border-t border-gray-600 pt-2">
-                                      {extraCart.map(item => (
-                                        <div key={item.id} className="flex items-center justify-between py-1">
-                                          <div className="flex items-center gap-2">
-                                            <button onClick={(e) => { e.stopPropagation(); updateExtraQty(item.id, -1); }} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center text-[10px]"><Minus size={10} /></button>
-                                            <span className="text-white text-xs font-bold">{item.qty}</span>
-                                            <button onClick={(e) => { e.stopPropagation(); updateExtraQty(item.id, 1); }} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center text-[10px]"><Plus size={10} /></button>
-                                            <span className="text-gray-300 text-xs">{item.nombre}</span>
-                                          </div>
-                                          <span className="text-pikta-accent text-xs font-bold">${(item.precio * item.qty).toFixed(2)}</span>
-                                        </div>
-                                      ))}
-                                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
-                                        <span className="text-xs text-gray-400">Extra total: <span className="text-pikta-accent font-bold">${extraTotal.toFixed(2)}</span></span>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); sendExtrasToKitchen(); }}
-                                          className="px-4 py-1.5 bg-pikta-accent text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-pikta-accent/80 transition"
-                                        >
-                                          <Send size={12} /> Enviar a Cocina
-                                        </button>
+                            {showExtraProducts && (
+                              <div className="bg-gray-800 rounded-xl p-3 mb-3">
+                                <div className="flex gap-1.5 flex-wrap mb-2">
+                                  {categories.map(cat => (
+                                    <button
+                                      key={cat}
+                                      onClick={(e) => { e.stopPropagation(); setExtraCategory(cat); }}
+                                      className={`px-3 py-1 rounded text-[11px] font-medium transition ${extraCategory === cat ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                    >
+                                      {cat}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5 max-h-[120px] overflow-y-auto">
+                                  {filteredExtraProducts.map(p => (
+                                    <button
+                                      key={p.id}
+                                      onClick={(e) => { e.stopPropagation(); addToExtraCart(p); }}
+                                      className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 rounded-lg px-2 py-1.5 text-left transition"
+                                    >
+                                      <span className="text-sm">{p.emoji || '🍽'}</span>
+                                      <div className="min-w-0">
+                                        <p className="text-white text-[11px] font-medium truncate">{p.nombre}</p>
+                                        <p className="text-pikta-accent text-[10px] font-bold">${p.precio.toFixed(2)}</p>
                                       </div>
-                                    </div>
-                                  )}
+                                    </button>
+                                  ))}
                                 </div>
-                              )}
-                            </div>
 
-                            {/* Payment section */}
-                            <div className="border-t border-gray-600 pt-3">
-                              <div className="flex justify-between items-center mb-3">
-                                <div>
-                                  <span className="text-xs text-gray-400">TOTAL</span>
-                                  <div className="text-xl font-bold text-pikta-accent">${orderTotal.toFixed(2)}</div>
-                                </div>
+                                {extraCart.length > 0 && (
+                                  <div className="mt-2 border-t border-gray-600 pt-2">
+                                    {extraCart.map(item => (
+                                      <div key={item.id} className="flex items-center justify-between py-1">
+                                        <div className="flex items-center gap-2">
+                                          <button onClick={(e) => { e.stopPropagation(); updateExtraQty(item.id, -1); }} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center text-[10px]"><Minus size={10} /></button>
+                                          <span className="text-white text-xs font-bold">{item.qty}</span>
+                                          <button onClick={(e) => { e.stopPropagation(); updateExtraQty(item.id, 1); }} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center text-[10px]"><Plus size={10} /></button>
+                                          <span className="text-gray-300 text-xs">{item.nombre}</span>
+                                        </div>
+                                        <span className="text-pikta-accent text-xs font-bold">${(item.precio * item.qty).toFixed(2)}</span>
+                                      </div>
+                                    ))}
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
+                                      <span className="text-xs text-gray-400">Extra: <span className="text-pikta-accent font-bold">${extraTotal.toFixed(2)}</span></span>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); sendExtrasToKitchen(); }}
+                                        className="px-4 py-1.5 bg-pikta-accent text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-pikta-accent/80 transition"
+                                      >
+                                        <Send size={12} /> Enviar a Cocina
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Payment */}
+                            <div className="border-t border-gray-700 pt-3">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs text-gray-400">TOTAL</span>
+                                <span className="text-xl font-bold text-pikta-accent">${orderTotal.toFixed(2)}</span>
                               </div>
 
                               <div className="grid grid-cols-3 gap-2 mb-3">
@@ -640,7 +646,7 @@ export default function POS() {
                                 disabled={!cashSession || (orderMetodoPago === 'EFECTIVO' && (!orderMontoRecibido || parseFloat(orderMontoRecibido) < orderTotal))}
                                 className="w-full py-3 bg-pikta-ok text-white rounded-lg font-bold text-lg hover:bg-green-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
                               >
-                                {orderMetodoPago === 'EFECTIVO' ? `COBRAR $${orderTotal.toFixed(2)}` : 'CONFIRMAR PAGO'}
+                                {!cashSession ? 'ABRE LA CAJA PRIMERO' : orderMetodoPago === 'EFECTIVO' ? `COBRAR $${orderTotal.toFixed(2)}` : 'CONFIRMAR PAGO'}
                               </button>
                             </div>
                           </div>
