@@ -31,6 +31,17 @@ export default function POS() {
 
   useEffect(() => { loadData(); }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && canCharge && !receiptData) {
+        e.preventDefault();
+        processOrder();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canCharge, receiptData, processOrder]);
+
   const loadData = async () => {
     try {
       const params = {};
@@ -201,7 +212,8 @@ export default function POS() {
           total: activeTotal, metodo_pago: payMethod,
           monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : activeTotal,
           cambio: payMethod === 'EFECTIVO' ? activeCambio : 0,
-          created_at: selectedOrder.created_at
+          created_at: selectedOrder.created_at,
+          cajero: user?.nombre || user?.email || 'CAJA'
         });
 
         setSelectedOrder(null);
@@ -249,7 +261,8 @@ export default function POS() {
       setReceiptData({
         order_id: orderId || `POS-${Date.now()}`, canal: orderChannel, items, total, metodo_pago: payMethod,
         monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : total,
-        cambio: payMethod === 'EFECTIVO' ? cambio : 0, created_at: new Date().toISOString()
+        cambio: payMethod === 'EFECTIVO' ? cambio : 0, created_at: new Date().toISOString(),
+        cajero: user?.nombre || user?.email || 'CAJA'
       });
 
       setCart([]);
