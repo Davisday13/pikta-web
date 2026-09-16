@@ -172,24 +172,25 @@ export default function POS() {
     ? (Array.isArray(selectedOrder.items) ? selectedOrder.items.length : 0)
     : cart.length;
 
-  const processOrder = useCallback(async () => {
+  const processOrder = useCallback(async (quickMethod) => {
+    const payMethod = quickMethod || metodoPago;
     if (view === 'pendientes' && selectedOrder) {
       if (!cashSession) return alert('Abre la caja primero');
-      if (metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < activeTotal)) {
+      if (payMethod === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < activeTotal)) {
         return alert('El monto recibido debe ser mayor o igual al total');
       }
       try {
         await api.post(`/orders/${selectedOrder.id}/pay`, {
-          metodo_pago: metodoPago, sesion_id: cashSession?.id
+          metodo_pago: payMethod, sesion_id: cashSession?.id
         });
         try {
           const items = Array.isArray(selectedOrder.items) ? selectedOrder.items : [];
           await api.post('/print/receipt', {
             order_id: selectedOrder.numero || selectedOrder.id,
             canal: selectedOrder.canal,
-            items, total: activeTotal, metodo_pago: metodoPago,
-            monto_recibido: metodoPago === 'EFECTIVO' ? parseFloat(montoRecibido) : activeTotal,
-            cambio: metodoPago === 'EFECTIVO' ? activeCambio : 0
+            items, total: activeTotal, metodo_pago: payMethod,
+            monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : activeTotal,
+            cambio: payMethod === 'EFECTIVO' ? activeCambio : 0
           });
         } catch (e) { console.warn('Print no disponible'); }
 
@@ -197,9 +198,9 @@ export default function POS() {
           order_id: selectedOrder.numero || selectedOrder.id,
           canal: selectedOrder.canal,
           items: Array.isArray(selectedOrder.items) ? selectedOrder.items : [],
-          total: activeTotal, metodo_pago: metodoPago,
-          monto_recibido: metodoPago === 'EFECTIVO' ? parseFloat(montoRecibido) : activeTotal,
-          cambio: metodoPago === 'EFECTIVO' ? activeCambio : 0,
+          total: activeTotal, metodo_pago: payMethod,
+          monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : activeTotal,
+          cambio: payMethod === 'EFECTIVO' ? activeCambio : 0,
           created_at: selectedOrder.created_at
         });
 
@@ -215,7 +216,7 @@ export default function POS() {
 
     if (cart.length === 0) return alert('Agrega productos a la orden');
     if (!cashSession) return alert('Abre la caja primero');
-    if (metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total)) {
+    if (payMethod === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total)) {
       return alert('El monto recibido debe ser mayor o igual al total');
     }
     try {
@@ -232,25 +233,23 @@ export default function POS() {
         });
         const ordersRes = await api.get('/orders');
         const latest = ordersRes.data.data?.[0];
-        if (latest) { orderId = latest.id; await api.post(`/orders/${latest.id}/pay`, { metodo_pago: metodoPago, sesion_id: cashSession?.id }); }
+        if (latest) { orderId = latest.id; await api.post(`/orders/${latest.id}/pay`, { metodo_pago: payMethod, sesion_id: cashSession?.id }); }
       } else {
         const res = await api.post('/orders', {
           items, total, canal: 'LLEVAR', mesa: 'PARA LLEVAR',
           usuario_id: user.id, sesion_id: cashSession?.id, sucursal_id: effectiveSucursalId
         });
         orderId = res.data?.order_id;
-        await api.post(`/orders/${orderId}/pay`, { metodo_pago: metodoPago, sesion_id: cashSession?.id });
+        await api.post(`/orders/${orderId}/pay`, { metodo_pago: payMethod, sesion_id: cashSession?.id });
       }
 
       try { await api.post('/print/kitchen', { order_id: orderId || `POS-${Date.now()}`, canal: orderChannel === 'LLEVAR' ? 'LLEVAR' : 'CAJA', items, total }); } catch (e) {}
-      if (metodoPago === 'EFECTIVO') {
-        try { await api.post('/print/receipt', { order_id: orderId || `POS-${Date.now()}`, canal: orderChannel, items, total, metodo_pago: metodoPago, monto_recibido: parseFloat(montoRecibido), cambio }); } catch (e) {}
-      }
+      try { await api.post('/print/receipt', { order_id: orderId || `POS-${Date.now()}`, canal: orderChannel, items, total, metodo_pago: payMethod, monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : total, cambio: payMethod === 'EFECTIVO' ? cambio : 0 }); } catch (e) {}
 
       setReceiptData({
-        order_id: orderId || `POS-${Date.now()}`, canal: orderChannel, items, total, metodo_pago: metodoPago,
-        monto_recibido: metodoPago === 'EFECTIVO' ? parseFloat(montoRecibido) : total,
-        cambio: metodoPago === 'EFECTIVO' ? cambio : 0, created_at: new Date().toISOString()
+        order_id: orderId || `POS-${Date.now()}`, canal: orderChannel, items, total, metodo_pago: payMethod,
+        monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : total,
+        cambio: payMethod === 'EFECTIVO' ? cambio : 0, created_at: new Date().toISOString()
       });
 
       setCart([]);
@@ -295,7 +294,6 @@ export default function POS() {
   if (loading) return <div className="flex items-center justify-center h-64 text-pikta-info">Cargando...</div>;
 
   const isCash = metodoPago === 'EFECTIVO';
-  const showNumpad = isCash;
   const canCharge = cashSession && activeItemsCount > 0 && (!isCash || (montoRecibido && parseFloat(montoRecibido) >= activeTotal));
   const chargeLabel = !cashSession ? 'ABRE LA CAJA PRIMERO'
     : isCash ? `COBRAR $${activeTotal.toFixed(2)}`
@@ -472,47 +470,41 @@ export default function POS() {
               <span className="text-2xl font-bold text-pikta-accent">${activeTotal.toFixed(2)}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 mb-3">
-              <button onClick={() => setMetodoPago('EFECTIVO')} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'EFECTIVO' ? 'bg-pikta-ok text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+              <button onClick={() => { setMetodoPago('EFECTIVO'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'EFECTIVO' ? 'bg-pikta-ok text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
                 <Banknote size={14} /> Efectivo
               </button>
-              <button onClick={() => setMetodoPago('YAPPY')} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'YAPPY' ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+              <button onClick={() => { setMetodoPago('YAPPY'); processOrder('YAPPY'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'YAPPY' ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
                 <Smartphone size={14} /> Yappy
               </button>
-              <button onClick={() => setMetodoPago('TARJETA')} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'TARJETA' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+              <button onClick={() => { setMetodoPago('TARJETA'); processOrder('TARJETA'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'TARJETA' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
                 <CreditCard size={14} /> Tarjeta
               </button>
             </div>
 
-            {/* Numpad + COBRAR */}
-            {showNumpad ? (
-              <div className="flex gap-3 items-stretch">
-                <div className="bg-gray-800 rounded-xl p-3 flex flex-col justify-center min-w-[100px]">
-                  <div className="mb-1">
-                    <p className="text-[10px] text-gray-400">RECIBIDO</p>
-                    <p className="text-lg font-bold text-white">${montoRecibido || '0.00'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-gray-400">CAMBIO</p>
-                    <p className={`text-lg font-bold ${activeCambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${activeCambio.toFixed(2)}</p>
-                  </div>
+            {/* Numpad always visible */}
+            <div className="flex gap-3 items-stretch">
+              <div className="bg-gray-800 rounded-xl p-3 flex flex-col justify-center min-w-[100px]">
+                <div className="mb-1">
+                  <p className="text-[10px] text-gray-400">RECIBIDO</p>
+                  <p className="text-lg font-bold text-white">{isCash ? `$${montoRecibido || '0.00'}` : `$${activeTotal.toFixed(2)}`}</p>
                 </div>
-                <div className="flex-1 grid grid-cols-4 gap-1.5">
-                  {[7,8,9].map(n => <button key={n} onClick={() => handleNumpad(String(n))} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>)}
-                  <button onClick={() => handleNumpad('B')} className="h-10 rounded-lg bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30 active:scale-95 transition flex items-center justify-center"><Delete size={16} /></button>
-                  {[4,5,6].map(n => <button key={n} onClick={() => handleNumpad(String(n))} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>)}
-                  <button onClick={() => handleNumpad('C')} className="h-10 rounded-lg text-xs font-bold bg-gray-600 text-gray-300 hover:bg-gray-500 active:scale-95 transition">CE</button>
-                  {[1,2,3].map(n => <button key={n} onClick={() => handleNumpad(String(n))} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>)}
-                  <div />
-                  <button onClick={() => handleNumpad('0')} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition col-span-2">0</button>
-                  <button onClick={() => handleNumpad('.')} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">.</button>
-                  <div />
+                <div>
+                  <p className="text-[10px] text-gray-400">CAMBIO</p>
+                  <p className={`text-lg font-bold ${activeCambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>{isCash ? `$${activeCambio.toFixed(2)}` : '$0.00'}</p>
                 </div>
               </div>
-            ) : (
-              <div className="text-center py-1 text-gray-500 text-xs">
-                {metodoPago !== 'EFECTIVO' ? `Pago ${metodoPago} — monto exacto: $${activeTotal.toFixed(2)}` : 'Selecciona un pedido o agrega productos'}
+              <div className="flex-1 grid grid-cols-4 gap-1.5">
+                {[7,8,9].map(n => <button key={n} onClick={() => handleNumpad(String(n))} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>)}
+                <button onClick={() => handleNumpad('B')} className="h-10 rounded-lg bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30 active:scale-95 transition flex items-center justify-center"><Delete size={16} /></button>
+                {[4,5,6].map(n => <button key={n} onClick={() => handleNumpad(String(n))} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>)}
+                <button onClick={() => handleNumpad('C')} className="h-10 rounded-lg text-xs font-bold bg-gray-600 text-gray-300 hover:bg-gray-500 active:scale-95 transition">CE</button>
+                {[1,2,3].map(n => <button key={n} onClick={() => handleNumpad(String(n))} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>)}
+                <div />
+                <button onClick={() => handleNumpad('0')} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition col-span-2">0</button>
+                <button onClick={() => handleNumpad('.')} className="h-10 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">.</button>
+                <div />
               </div>
-            )}
+            </div>
 
             {/* COBRAR Button */}
             <button onClick={processOrder} disabled={!canCharge}
