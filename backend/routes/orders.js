@@ -27,11 +27,15 @@ router.get('/', async (req, res) => {
     });
 
     for (const order of parsed) {
-      const extras = await queryAll('SELECT * FROM pedido_extras WHERE pedido_id = ? AND estado != ? ORDER BY id ASC', [order.id, 'ENTREGADO']);
-      order.extras = extras.map(e => {
-        try { e.items = JSON.parse(e.items); } catch(err) {}
-        return e;
-      });
+      try {
+        const extras = await queryAll('SELECT * FROM pedido_extras WHERE pedido_id = ? AND estado != ? ORDER BY id ASC', [order.id, 'ENTREGADO']);
+        order.extras = extras.map(e => {
+          try { e.items = JSON.parse(e.items); } catch(err) {}
+          return e;
+        });
+      } catch(e) {
+        order.extras = [];
+      }
     }
 
     res.json({ status: 'success', data: parsed });
@@ -104,28 +108,13 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/extras/:extraId', async (req, res) => {
   try {
-    const { estado, metodo_pago, pagado, sesion_id } = req.body;
-
-    if (estado === 'PREPARANDO') {
-      await runSql('UPDATE pedidos SET estado = ?, preparacion_inicio = ? WHERE id = ?',
-        [estado, new Date().toISOString(), req.params.id]);
-    } else if (estado) {
-      await runSql('UPDATE pedidos SET estado = ? WHERE id = ?', [estado, req.params.id]);
+    const { estado } = req.body;
+    if (estado) {
+      await runSql('UPDATE pedido_extras SET estado = ? WHERE id = ?', [estado, req.params.extraId]);
     }
-
-    if (metodo_pago !== undefined) {
-      await runSql('UPDATE pedidos SET metodo_pago = ? WHERE id = ?', [metodo_pago, req.params.id]);
-    }
-    if (pagado !== undefined) {
-      await runSql('UPDATE pedidos SET pagado = ? WHERE id = ?', [pagado ? true : false, req.params.id]);
-    }
-    if (sesion_id !== undefined) {
-      await runSql('UPDATE pedidos SET sesion_id = ? WHERE id = ?', [sesion_id, req.params.id]);
-    }
-
-    res.json({ status: 'success', message: 'Pedido actualizado' });
+    res.json({ status: 'success', message: 'Extra actualizado' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -148,16 +137,28 @@ router.post('/:id/extras', async (req, res) => {
   }
 });
 
-router.put('/extras/:extraId', async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const { estado } = req.body;
+    const { estado, metodo_pago, pagado, sesion_id } = req.body;
+
     if (estado === 'PREPARANDO') {
-      await runSql('UPDATE pedido_extras SET estado = ? WHERE id = ?',
-        [estado, req.params.extraId]);
+      await runSql('UPDATE pedidos SET estado = ?, preparacion_inicio = ? WHERE id = ?',
+        [estado, new Date().toISOString(), req.params.id]);
     } else if (estado) {
-      await runSql('UPDATE pedido_extras SET estado = ? WHERE id = ?', [estado, req.params.extraId]);
+      await runSql('UPDATE pedidos SET estado = ? WHERE id = ?', [estado, req.params.id]);
     }
-    res.json({ status: 'success', message: 'Extra actualizado' });
+
+    if (metodo_pago !== undefined) {
+      await runSql('UPDATE pedidos SET metodo_pago = ? WHERE id = ?', [metodo_pago, req.params.id]);
+    }
+    if (pagado !== undefined) {
+      await runSql('UPDATE pedidos SET pagado = ? WHERE id = ?', [pagado ? true : false, req.params.id]);
+    }
+    if (sesion_id !== undefined) {
+      await runSql('UPDATE pedidos SET sesion_id = ? WHERE id = ?', [sesion_id, req.params.id]);
+    }
+
+    res.json({ status: 'success', message: 'Pedido actualizado' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

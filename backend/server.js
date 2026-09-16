@@ -17,8 +17,6 @@ app.use(express.json());
 
 // Start server after DB init
 async function start() {
-  await setupDb();
-
   // Serve product images
   const imagesDir = path.join(__dirname, 'images');
   app.use('/api/images', express.static(imagesDir));
@@ -36,7 +34,7 @@ async function start() {
 
   // Health check
   app.get('/api/status', (req, res) => {
-    res.json({ status: 'success', message: "PIK'TA POS API Web funcionando", version: '1.0.0' });
+    res.json({ status: 'success', message: "PIK'TA POS API Web funcionando", version: '1.0.1' });
   });
 
   // Serve static frontend
@@ -48,6 +46,11 @@ async function start() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`PIK'TA POS API Web corriendo en puerto ${PORT}`);
+  });
+
+  // Init DB in background (don't block startup)
+  setupDb().catch(err => {
+    console.error('Error initializing database:', err.message);
   });
 }
 
