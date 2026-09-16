@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Delete, ClipboardList, Send } from 'lucide-react';
@@ -129,8 +129,11 @@ export default function POS() {
   const total = cart.reduce((sum, item) => sum + item.precio * item.qty, 0);
   const cambio = montoRecibido && parseFloat(montoRecibido) >= total ? parseFloat(montoRecibido) - total : 0;
 
-  const extraTotal = extraCart.reduce((sum, item) => sum + item.precio * item.qty, 0);
-  const orderTotal = selectedOrder?.total || 0;
+  const orderExtraTotal = extraCart.reduce((sum, item) => sum + item.precio * item.qty, 0);
+  const selItems = (view === 'pendientes' && selectedOrder) ? (Array.isArray(selectedOrder.items) ? selectedOrder.items : []) : [];
+  const selExtrasItems = (view === 'pendientes' && selectedOrder && Array.isArray(selectedOrder.extras)) ? selectedOrder.extras.flatMap(e => Array.isArray(e.items) ? e.items : []) : [];
+  const computedOrderTotal = [...selItems, ...selExtrasItems].reduce((s, i) => s + (i.precio || i.precio_unitario || 0) * (i.qty || i.cantidad || 1), 0);
+  const orderTotal = (view === 'pendientes' && selectedOrder) ? ((selectedOrder.total > 0 ? parseFloat(selectedOrder.total) : null) || computedOrderTotal) : 0;
   const orderCambio = montoRecibido && parseFloat(montoRecibido) >= orderTotal ? parseFloat(montoRecibido) - orderTotal : 0;
 
   const handleNumpad = useCallback((value) => {
@@ -155,7 +158,7 @@ export default function POS() {
       tipo: item.tipo || 'COMIDA'
     }));
     try {
-      await api.post(`/orders/${selectedOrder.id}/extras`, { items, total: extraTotal });
+      await api.post(`/orders/${selectedOrder.id}/extras`, { items, total: orderExtraTotal });
       setExtraCart([]);
       setShowExtraProducts(false);
       setMontoRecibido('');
@@ -169,39 +172,49 @@ export default function POS() {
   const activeTotal = view === 'pendientes' && selectedOrder ? orderTotal : total;
   const activeCambio = view === 'pendientes' && selectedOrder ? orderCambio : cambio;
   const activeItemsCount = view === 'pendientes' && selectedOrder
-    ? (Array.isArray(selectedOrder.items) ? selectedOrder.items.length : 0)
+    ? Math.max(selItems.length + selExtrasItems.length, 1)
     : cart.length;
+
+  const viewRef = useRef(view);
+  const selectedOrderRef = useRef(selectedOrder);
+  viewRef.current = view;
+  selectedOrderRef.current = selectedOrder;
 
   const processOrder = useCallback(async (quickMethod) => {
     const payMethod = quickMethod || metodoPago;
-    if (view === 'pendientes' && selectedOrder) {
+    const curView = viewRef.current;
+    const curOrder = selectedOrderRef.current;
+    if (curView === 'pendientes' && curOrder) {
       if (!cashSession) return alert('Abre la caja primero');
-      if (payMethod === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < activeTotal)) {
+      const curOrderItems = Array.isArray(curOrder.items) ? curOrder.items : [];
+      const curExtrasItems = Array.isArray(curOrder.extras) ? curOrder.extras.flatMap(e => Array.isArray(e.items) ? e.items : []) : [];
+      const curAllItems = [...curOrderItems, ...curExtrasItems];
+      const curTotal = (curOrder.total > 0 ? parseFloat(curOrder.total) : null) || curAllItems.reduce((s, i) => s + (i.precio || i.precio_unitario || 0) * (i.qty || i.cantidad || 1), 0);
+      if (payMethod === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < curTotal)) {
         return alert('El monto recibido debe ser mayor o igual al total');
       }
       try {
-        await api.post(`/orders/${selectedOrder.id}/pay`, {
+        await api.post(`/orders/${curOrder.id}/pay`, {
           metodo_pago: payMethod, sesion_id: cashSession?.id
         });
         try {
-          const items = Array.isArray(selectedOrder.items) ? selectedOrder.items : [];
           await api.post('/print/receipt', {
-            order_id: selectedOrder.numero || selectedOrder.id,
-            canal: selectedOrder.canal,
-            items, total: activeTotal, metodo_pago: payMethod,
-            monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : activeTotal,
-            cambio: payMethod === 'EFECTIVO' ? activeCambio : 0
+            order_id: curOrder.numero || curOrder.id,
+            canal: curOrder.canal,
+            items: curAllItems, total: curTotal, metodo_pago: payMethod,
+            monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : curTotal,
+            cambio: payMethod === 'EFECTIVO' ? (parseFloat(montoRecibido) - curTotal) : 0
           });
         } catch (e) { console.warn('Print no disponible'); }
 
         setReceiptData({
-          order_id: selectedOrder.numero || selectedOrder.id,
-          canal: selectedOrder.canal,
-          items: Array.isArray(selectedOrder.items) ? selectedOrder.items : [],
-          total: activeTotal, metodo_pago: payMethod,
-          monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : activeTotal,
-          cambio: payMethod === 'EFECTIVO' ? activeCambio : 0,
-          created_at: selectedOrder.created_at,
+          order_id: curOrder.numero || curOrder.id,
+          canal: curOrder.canal,
+          items: curAllItems,
+          total: curTotal, metodo_pago: payMethod,
+          monto_recibido: payMethod === 'EFECTIVO' ? parseFloat(montoRecibido) : curTotal,
+          cambio: payMethod === 'EFECTIVO' ? (parseFloat(montoRecibido) - curTotal) : 0,
+          created_at: curOrder.created_at,
           cajero: user?.nombre || user?.email || 'CAJA'
         });
 
@@ -260,7 +273,7 @@ export default function POS() {
     } catch (err) {
       alert('Error al procesar pedido');
     }
-  }, [cart, total, metodoPago, montoRecibido, orderChannel, cashSession, effectiveSucursalId, user, cambio, view, selectedOrder, activeTotal, activeCambio]);
+  }, [cart, total, metodoPago, montoRecibido, orderChannel, cashSession, effectiveSucursalId, user, cambio, montoRecibido]);
 
   const openCash = async () => {
     const monto = prompt('Monto inicial en caja:');
