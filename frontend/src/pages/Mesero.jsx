@@ -78,14 +78,23 @@ export default function Mesero() {
         id: item.id, nombre: item.nombre, precio: item.precio, qty: item.qty, tipo: item.tipo || 'COMIDA'
       }));
 
-      await api.post('/orders', {
-        items, total, canal: 'MESERO', mesa: selectedTable,
-        usuario_id: user.id,
-        sucursal_id: effectiveSucursalId
-      });
+      const existingOrder = activeOrders.find(o => o.mesa === selectedTable && o.estado !== 'COBRADO' && o.estado !== 'CANCELADO' && o.estado !== 'ENTREGADO');
+
+      if (existingOrder) {
+        await api.put(`/orders/${existingOrder.id}/items`, {
+          items, total
+        });
+        alert(`Items agregados al pedido existente de ${selectedTable}`);
+      } else {
+        await api.post('/orders', {
+          items, total, canal: 'MESERO', mesa: selectedTable,
+          usuario_id: user.id,
+          sucursal_id: effectiveSucursalId
+        });
+        alert(`Pedido enviado a cocina para ${selectedTable}`);
+      }
 
       setCart([]);
-      alert(`Pedido enviado a cocina para ${selectedTable}`);
       loadData();
     } catch (err) {
       alert('Error al enviar pedido');
@@ -156,7 +165,32 @@ export default function Mesero() {
         <div className="w-80 bg-pikta-panel rounded-xl flex flex-col">
           <div className="p-3 border-b border-gray-600">
             <h2 className="font-bold text-white">{selectedTable}</h2>
-            <p className="text-xs text-gray-400">{cart.length} productos en el pedido</p>
+            <div className="flex items-center gap-2 mt-1">
+              {(() => {
+                const existingOrder = activeOrders.find(o => o.mesa === selectedTable && o.estado !== 'COBRADO' && o.estado !== 'CANCELADO' && o.estado !== 'ENTREGADO');
+                if (existingOrder) {
+                  const existingItems = Array.isArray(existingOrder.items) ? existingOrder.items : [];
+                  return (
+                    <div className="w-full">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-pikta-warn/20 text-pikta-warn font-medium">Pedido abierto — {existingOrder.numero}</span>
+                      <div className="mt-1.5 space-y-0.5 max-h-[80px] overflow-y-auto">
+                        {existingItems.map((item, idx) => (
+                          <div key={idx} className="flex justify-between text-[11px]">
+                            <span className="text-gray-400">{item.qty || item.cantidad}x {item.nombre}</span>
+                            <span className="text-gray-500">${((item.precio || item.precio_unitario || 0) * (item.qty || item.cantidad || 1)).toFixed(2)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between text-[11px] font-bold border-t border-gray-600 pt-0.5">
+                          <span className="text-gray-400">Subtotal</span>
+                          <span className="text-pikta-accent">${existingOrder.total?.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return <p className="text-xs text-gray-400">Sin pedido abierto</p>;
+              })()}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2">

@@ -121,6 +121,35 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.put('/:id/items', async (req, res) => {
+  try {
+    const { items, total: newItemsTotal } = req.body;
+    const order = await queryOne('SELECT id, items, total FROM pedidos WHERE id = ?', [req.params.id]);
+    if (!order) return res.status(404).json({ status: 'error', message: 'Pedido no encontrado' });
+
+    let existingItems = [];
+    try { existingItems = JSON.parse(order.items); } catch(e) {}
+
+    for (const item of items) {
+      const existing = existingItems.find(e => e.id === item.id);
+      if (existing) {
+        existing.qty = (existing.qty || existing.cantidad || 1) + (item.qty || item.cantidad || 1);
+        existing.cantidad = existing.qty;
+      } else {
+        existingItems.push({ ...item, qty: item.qty || item.cantidad || 1, cantidad: item.qty || item.cantidad || 1 });
+      }
+    }
+
+    const newTotal = (order.total || 0) + (newItemsTotal || 0);
+    await runSql('UPDATE pedidos SET items = ?, total = ?, subtotal = ? WHERE id = ?',
+      [JSON.stringify(existingItems), newTotal, newTotal, req.params.id]);
+
+    res.json({ status: 'success', message: 'Items agregados al pedido', order_id: parseInt(req.params.id), new_total: newTotal });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
 router.put('/extras/:extraId', async (req, res) => {
   try {
     const { estado } = req.body;
