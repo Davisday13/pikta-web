@@ -31,6 +31,7 @@ async function start() {
   app.use('/api/cash', require('./routes/cash'));
   app.use('/api/reports', require('./routes/reports'));
   app.use('/api/print', require('./routes/print'));
+  app.use('/api/fiscal', require('./routes/fiscal'));
 
   // Health check
   app.get('/api/status', (req, res) => {

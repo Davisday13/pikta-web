@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, ShoppingCart, ChefHat, UtensilsCrossed, Users, Package, BarChart3, LogOut, UtensilsCrossed as Utensils } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, ChefHat, UtensilsCrossed, Users, Package, BarChart3, LogOut, UtensilsCrossed as Utensils, FileText } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: null },
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/admin/products', icon: Utensils, label: 'Productos', roles: ['Administrador'] },
   { to: '/admin/users', icon: Users, label: 'Usuarios', roles: ['Administrador'] },
   { to: '/admin/inventory', icon: Package, label: 'Inventario', roles: ['Administrador', 'Supervisor'] },
+  { to: '/admin/cierre-z', icon: FileText, label: 'Cierre Z', roles: ['Administrador', 'Supervisor'] },
   { to: '/reports', icon: BarChart3, label: 'Reportes', roles: ['Administrador', 'Supervisor'] },
 ];
 

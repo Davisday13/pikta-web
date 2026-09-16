@@ -11,6 +11,7 @@ import AdminUsers from './pages/AdminUsers';
 import AdminInventory from './pages/AdminInventory';
 import AdminProducts from './pages/AdminProducts';
 import Reports from './pages/Reports';
+import AdminCierreZ from './pages/AdminCierreZ';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -61,6 +62,11 @@ function AppRoutes() {
         <Route path="/reports" element={
           <ProtectedRoute roles={['Administrador', 'Supervisor']}>
             <Reports />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/cierre-z" element={
+          <ProtectedRoute roles={['Administrador', 'Supervisor']}>
+            <AdminCierreZ />
           </ProtectedRoute>
         } />
       </Route>
