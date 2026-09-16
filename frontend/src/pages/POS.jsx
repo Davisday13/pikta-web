@@ -139,7 +139,7 @@ export default function POS() {
     ? parseFloat(montoRecibido) - total : 0;
 
   const extraTotal = extraCart.reduce((sum, item) => sum + item.precio * item.qty, 0);
-  const orderTotal = (selectedOrder?.total || 0) + extraTotal;
+  const orderTotal = selectedOrder?.total || 0;
   const orderCambio = orderMontoRecibido && parseFloat(orderMontoRecibido) >= orderTotal
     ? parseFloat(orderMontoRecibido) - orderTotal : 0;
 
@@ -603,7 +603,7 @@ export default function POS() {
                             <div className="border-t border-gray-600 pt-3">
                               <div className="flex justify-between items-center mb-3">
                                 <div>
-                                  <span className="text-xs text-gray-400">TOTAL {extraCart.length > 0 && `(+$${extraTotal.toFixed(2)} extra)`}</span>
+                                  <span className="text-xs text-gray-400">TOTAL</span>
                                   <div className="text-xl font-bold text-pikta-accent">${orderTotal.toFixed(2)}</div>
                                 </div>
                               </div>

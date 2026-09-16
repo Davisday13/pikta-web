@@ -122,16 +122,20 @@ router.put('/extras/:extraId', async (req, res) => {
 
 router.post('/:id/extras', async (req, res) => {
   try {
-    const { items, total } = req.body;
-    const order = await queryOne('SELECT id FROM pedidos WHERE id = ?', [req.params.id]);
+    const { items, total: extraTotal } = req.body;
+    const order = await queryOne('SELECT id, total FROM pedidos WHERE id = ?', [req.params.id]);
     if (!order) return res.status(404).json({ status: 'error', message: 'Pedido no encontrado' });
 
     const result = await runSql(
       'INSERT INTO pedido_extras (pedido_id, items, total, estado, created_at, sucursal_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.params.id, JSON.stringify(items), total, 'RECIBIDO', new Date().toISOString(), req.user.sucursal_id]
+      [req.params.id, JSON.stringify(items), extraTotal, 'RECIBIDO', new Date().toISOString(), req.user.sucursal_id]
     );
 
-    res.status(201).json({ status: 'success', message: 'Extra enviado a cocina', extra_id: result.lastInsertRowid });
+    // Update parent order total only (items stay separate for kitchen)
+    const newTotal = (order.total || 0) + (extraTotal || 0);
+    await runSql('UPDATE pedidos SET total = ?, subtotal = ? WHERE id = ?', [newTotal, newTotal, req.params.id]);
+
+    res.status(201).json({ status: 'success', message: 'Extra enviado a cocina', extra_id: result.lastInsertRowid, new_total: newTotal });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
