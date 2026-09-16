@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { queryAll, queryOne, runSql } = require('../config/database');
-const authMiddleware = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 
 router.use(authMiddleware);
 
