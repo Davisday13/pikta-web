@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { FileText, Download, Printer, Clock, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
@@ -81,7 +82,6 @@ export default function AdminCierreZ() {
 
   const downloadPDF = () => {
     if (!report) return;
-    const { jsPDF } = require('jspdf');
     const doc = new jsPDF({ unit: 'mm', format: [80, 200] });
     const pw = 80;
     let y = 8;
