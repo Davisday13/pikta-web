@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Delete, ClipboardList, RefreshCw } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Delete, ClipboardList, Send } from 'lucide-react';
 import ReceiptModal from '../components/ReceiptModal';
 
 export default function POS() {
@@ -16,12 +16,16 @@ export default function POS() {
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
   const [montoRecibido, setMontoRecibido] = useState('');
   const [receiptData, setReceiptData] = useState(null);
+
   const [view, setView] = useState('venta');
   const [pendingOrders, setPendingOrders] = useState([]);
   const [loadingPending, setLoadingPending] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderMetodoPago, setOrderMetodoPago] = useState('EFECTIVO');
   const [orderMontoRecibido, setOrderMontoRecibido] = useState('');
+  const [showExtraProducts, setShowExtraProducts] = useState(false);
+  const [extraCategory, setExtraCategory] = useState('');
+  const [extraCart, setExtraCart] = useState([]);
 
   const effectiveSucursalId = user?.rol === 'Administrador' || user?.rol === 'Supervisor'
     ? (selectedSucursal || user?.sucursal_id)
@@ -41,7 +45,10 @@ export default function POS() {
       ]);
       setProducts(prodRes.data.data || []);
       setCategories(catRes.data.data || []);
-      if (catRes.data.data?.length) setSelectedCategory(catRes.data.data[0]);
+      if (catRes.data.data?.length) {
+        setSelectedCategory(catRes.data.data[0]);
+        setExtraCategory(catRes.data.data[0]);
+      }
       if (cashRes.data.status === 'success') setCashSession(cashRes.data.data);
     } catch (err) {
       console.error('Error:', err);
@@ -57,6 +64,11 @@ export default function POS() {
       if (effectiveSucursalId) params.sucursal_id = effectiveSucursalId;
       const res = await api.get('/orders/pending', { params });
       setPendingOrders(res.data.data || []);
+
+      if (selectedOrder) {
+        const updated = res.data.data?.find(o => o.id === selectedOrder.id);
+        if (updated) setSelectedOrder(updated);
+      }
     } catch (err) {
       console.error('Error loading pending orders:', err);
     } finally {
@@ -76,6 +88,7 @@ export default function POS() {
   }, [view, effectiveSucursalId]);
 
   const filteredProducts = products.filter(p => p.categoria === selectedCategory && p.disponible);
+  const filteredExtraProducts = products.filter(p => p.categoria === extraCategory && p.disponible);
 
   const addToCart = (product) => {
     setCart(prev => {
@@ -85,6 +98,26 @@ export default function POS() {
       }
       return [...prev, { ...product, qty: 1 }];
     });
+  };
+
+  const addToExtraCart = (product) => {
+    setExtraCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item);
+      }
+      return [...prev, { ...product, qty: 1 }];
+    });
+  };
+
+  const updateExtraQty = (id, delta) => {
+    setExtraCart(prev => prev.map(item => {
+      if (item.id === id) {
+        const newQty = item.qty + delta;
+        return newQty > 0 ? { ...item, qty: newQty } : null;
+      }
+      return item;
+    }).filter(Boolean));
   };
 
   const updateQty = (id, delta) => {
@@ -105,8 +138,10 @@ export default function POS() {
   const cambio = montoRecibido && parseFloat(montoRecibido) >= total
     ? parseFloat(montoRecibido) - total : 0;
 
-  const orderCambio = orderMontoRecibido && parseFloat(orderMontoRecibido) >= (selectedOrder?.total || 0)
-    ? parseFloat(orderMontoRecibido) - (selectedOrder?.total || 0) : 0;
+  const extraTotal = extraCart.reduce((sum, item) => sum + item.precio * item.qty, 0);
+  const orderTotal = (selectedOrder?.total || 0) + extraTotal;
+  const orderCambio = orderMontoRecibido && parseFloat(orderMontoRecibido) >= orderTotal
+    ? parseFloat(orderMontoRecibido) - orderTotal : 0;
 
   const handleNumpad = useCallback((value) => {
     setMontoRecibido(prev => {
@@ -135,6 +170,28 @@ export default function POS() {
       return prev + value;
     });
   }, []);
+
+  const sendExtrasToKitchen = async () => {
+    if (!selectedOrder || extraCart.length === 0) return;
+    const items = extraCart.map(item => ({
+      id: item.id, nombre: item.nombre, precio: item.precio,
+      qty: item.qty, cantidad: item.qty, precio_unitario: item.precio,
+      tipo: item.tipo || 'COMIDA'
+    }));
+
+    try {
+      await api.post(`/orders/${selectedOrder.id}/extras`, {
+        items, total: extraTotal
+      });
+      setExtraCart([]);
+      setShowExtraProducts(false);
+      loadPendingOrders();
+      alert('Extra enviado a cocina');
+    } catch (err) {
+      alert('Error al enviar extra');
+      console.error(err);
+    }
+  };
 
   const processOrder = useCallback(async () => {
     if (cart.length === 0) return alert('Agrega productos a la orden');
@@ -216,7 +273,7 @@ export default function POS() {
   const payPendingOrder = useCallback(async () => {
     if (!selectedOrder) return;
     if (!cashSession) return alert('Abre la caja primero');
-    if (orderMetodoPago === 'EFECTIVO' && (!orderMontoRecibido || parseFloat(orderMontoRecibido) < selectedOrder.total)) {
+    if (orderMetodoPago === 'EFECTIVO' && (!orderMontoRecibido || parseFloat(orderMontoRecibido) < orderTotal)) {
       return alert('El monto recibido debe ser mayor o igual al total');
     }
 
@@ -231,8 +288,8 @@ export default function POS() {
         await api.post('/print/receipt', {
           order_id: selectedOrder.numero || selectedOrder.id,
           canal: selectedOrder.canal,
-          items, total: selectedOrder.total, metodo_pago: orderMetodoPago,
-          monto_recibido: orderMetodoPago === 'EFECTIVO' ? parseFloat(orderMontoRecibido) : selectedOrder.total,
+          items, total: orderTotal, metodo_pago: orderMetodoPago,
+          monto_recibido: orderMetodoPago === 'EFECTIVO' ? parseFloat(orderMontoRecibido) : orderTotal,
           cambio: orderMetodoPago === 'EFECTIVO' ? orderCambio : 0
         });
       } catch (printErr) {
@@ -243,20 +300,22 @@ export default function POS() {
         order_id: selectedOrder.numero || selectedOrder.id,
         canal: selectedOrder.canal,
         items: Array.isArray(selectedOrder.items) ? selectedOrder.items : [],
-        total: selectedOrder.total, metodo_pago: orderMetodoPago,
-        monto_recibido: orderMetodoPago === 'EFECTIVO' ? parseFloat(orderMontoRecibido) : selectedOrder.total,
+        total: orderTotal, metodo_pago: orderMetodoPago,
+        monto_recibido: orderMetodoPago === 'EFECTIVO' ? parseFloat(orderMontoRecibido) : orderTotal,
         cambio: orderMetodoPago === 'EFECTIVO' ? orderCambio : 0,
         created_at: selectedOrder.created_at
       });
 
       setSelectedOrder(null);
       setOrderMontoRecibido('');
+      setExtraCart([]);
+      setShowExtraProducts(false);
       loadPendingOrders();
     } catch (err) {
       alert('Error al cobrar pedido');
       console.error(err);
     }
-  }, [selectedOrder, cashSession, orderMetodoPago, orderMontoRecibido, orderCambio]);
+  }, [selectedOrder, cashSession, orderMetodoPago, orderMontoRecibido, orderCambio, orderTotal, extraTotal]);
 
   const openCash = async () => {
     const monto = prompt('Monto inicial en caja:');
@@ -290,7 +349,21 @@ export default function POS() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (selectedOrder) return;
+      if (selectedOrder && view === 'pendientes') {
+        if (e.key >= '0' && e.key <= '9') {
+          e.preventDefault();
+          handleOrderNumpad(e.key);
+        } else if (e.key === '.') {
+          e.preventDefault();
+          handleOrderNumpad('.');
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          handleOrderNumpad('B');
+        } else if (e.key === 'Escape') {
+          handleOrderNumpad('C');
+        }
+        return;
+      }
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
         handleNumpad(e.key);
@@ -310,7 +383,7 @@ export default function POS() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleNumpad, processOrder, selectedOrder]);
+  }, [handleNumpad, handleOrderNumpad, processOrder, selectedOrder, view]);
 
   if (loading) return <div className="flex items-center justify-center h-64 text-pikta-info">Cargando...</div>;
 
@@ -324,21 +397,25 @@ export default function POS() {
           <div className="px-4 py-3 border-b border-gray-600 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="flex gap-1">
-                <button onClick={() => { setView('venta'); setSelectedOrder(null); }} className={`px-3 py-1 rounded text-xs font-bold transition ${view === 'venta' ? 'bg-pikta-info text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
+                <button onClick={() => { setView('venta'); setSelectedOrder(null); setExtraCart([]); setShowExtraProducts(false); }} className={`px-3 py-1 rounded text-xs font-bold transition ${view === 'venta' ? 'bg-pikta-info text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
                   <span className="flex items-center gap-1"><ShoppingCart size={12} /> Nueva Venta</span>
                 </button>
-                <button onClick={() => setView('pendientes')} className={`px-3 py-1 rounded text-xs font-bold transition ${view === 'pendientes' ? 'bg-pikta-warn text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
+                <button onClick={() => { setView('pendientes'); setSelectedOrder(null); setExtraCart([]); setShowExtraProducts(false); }} className={`px-3 py-1 rounded text-xs font-bold transition ${view === 'pendientes' ? 'bg-pikta-warn text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}>
                   <span className="flex items-center gap-1"><ClipboardList size={12} /> Pedidos ({pendingOrders.length})</span>
                 </button>
               </div>
             </div>
             <div className="flex gap-1.5">
-              <button onClick={() => setOrderChannel('CAJA')} className={`px-3 py-1 rounded text-xs font-medium transition ${orderChannel === 'CAJA' ? 'bg-pikta-info text-white' : 'bg-gray-600 text-gray-300'}`}>
-                Local
-              </button>
-              <button onClick={() => setOrderChannel('LLEVAR')} className={`px-3 py-1 rounded text-xs font-medium transition ${orderChannel === 'LLEVAR' ? 'bg-pikta-accent text-white' : 'bg-gray-600 text-gray-300'}`}>
-                Llevar
-              </button>
+              {view === 'venta' && (
+                <>
+                  <button onClick={() => setOrderChannel('CAJA')} className={`px-3 py-1 rounded text-xs font-medium transition ${orderChannel === 'CAJA' ? 'bg-pikta-info text-white' : 'bg-gray-600 text-gray-300'}`}>
+                    Local
+                  </button>
+                  <button onClick={() => setOrderChannel('LLEVAR')} className={`px-3 py-1 rounded text-xs font-medium transition ${orderChannel === 'LLEVAR' ? 'bg-pikta-accent text-white' : 'bg-gray-600 text-gray-300'}`}>
+                    Llevar
+                  </button>
+                </>
+              )}
               {!cashSession ? (
                 <button onClick={openCash} className="px-3 py-1 bg-pikta-ok text-white rounded text-xs font-medium">Abrir Caja</button>
               ) : (
@@ -349,7 +426,6 @@ export default function POS() {
 
           {view === 'venta' ? (
             <>
-              {/* Table Header */}
               <div className="grid grid-cols-[1fr_60px_80px_70px_30px] gap-1 px-4 py-2 bg-gray-800 text-xs font-bold text-gray-400">
                 <span>Producto</span>
                 <span className="text-center">Cant.</span>
@@ -357,8 +433,6 @@ export default function POS() {
                 <span className="text-right">Subtotal</span>
                 <span></span>
               </div>
-
-              {/* Table Body */}
               <div className="flex-1 overflow-y-auto min-h-0">
                 {cart.length === 0 ? (
                   <p className="text-gray-500 text-center py-12 text-sm">Agrega productos</p>
@@ -367,31 +441,22 @@ export default function POS() {
                     <div key={item.id} className={`grid grid-cols-[1fr_60px_80px_70px_30px] gap-1 px-4 py-2.5 items-center text-sm border-b border-gray-700/50 ${idx % 2 === 0 ? 'bg-gray-800/30' : ''}`}>
                       <span className="text-white font-medium truncate">{item.nombre}</span>
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => updateQty(item.id, -1)} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 text-[10px]">
-                          <Minus size={10} />
-                        </button>
+                        <button onClick={() => updateQty(item.id, -1)} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 text-[10px]"><Minus size={10} /></button>
                         <span className="text-white font-bold w-4 text-center">{item.qty}</span>
-                        <button onClick={() => updateQty(item.id, 1)} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 text-[10px]">
-                          <Plus size={10} />
-                        </button>
+                        <button onClick={() => updateQty(item.id, 1)} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center hover:bg-gray-500 text-[10px]"><Plus size={10} /></button>
                       </div>
                       <span className="text-gray-300 text-right">${item.precio.toFixed(2)}</span>
                       <span className="text-pikta-accent font-bold text-right">${(item.precio * item.qty).toFixed(2)}</span>
-                      <button onClick={() => removeFromCart(item.id)} className="text-pikta-err hover:text-red-400 flex justify-center">
-                        <Trash2 size={12} />
-                      </button>
+                      <button onClick={() => removeFromCart(item.id)} className="text-pikta-err hover:text-red-400 flex justify-center"><Trash2 size={12} /></button>
                     </div>
                   ))
                 )}
               </div>
-
-              {/* Total + Payment buttons */}
               <div className="px-4 py-3 border-t border-gray-600">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-lg font-bold text-white">TOTAL:</span>
                   <span className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</span>
                 </div>
-
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <button onClick={() => setMetodoPago('EFECTIVO')} className={`py-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${metodoPago === 'EFECTIVO' ? 'bg-pikta-ok text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
                     <Banknote size={14} /> Efectivo
@@ -403,7 +468,6 @@ export default function POS() {
                     <CreditCard size={14} /> Tarjeta
                   </button>
                 </div>
-
                 <button
                   onClick={processOrder}
                   disabled={cart.length === 0 || !cashSession || (metodoPago === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < total))}
@@ -427,13 +491,24 @@ export default function POS() {
                 ) : (
                   pendingOrders.map(order => {
                     const items = Array.isArray(order.items) ? order.items : [];
+                    const isExpanded = selectedOrder?.id === order.id;
                     return (
-                      <div
-                        key={order.id}
-                        onClick={() => setSelectedOrder(selectedOrder?.id === order.id ? null : order)}
-                        className={`mx-3 mb-2 rounded-xl border cursor-pointer transition ${selectedOrder?.id === order.id ? 'border-pikta-accent bg-gray-700/50' : 'border-gray-700 bg-gray-800/50 hover:border-gray-500'}`}
-                      >
-                        <div className="px-4 py-3 flex items-center justify-between">
+                      <div key={order.id} className={`mx-3 mb-2 rounded-xl border transition ${isExpanded ? 'border-pikta-accent' : 'border-gray-700 hover:border-gray-500'}`}>
+                        {/* Order Header (always visible) */}
+                        <div
+                          onClick={() => {
+                            if (isExpanded) {
+                              setSelectedOrder(null);
+                              setExtraCart([]);
+                              setShowExtraProducts(false);
+                            } else {
+                              setSelectedOrder(order);
+                              setExtraCart([]);
+                              setShowExtraProducts(false);
+                            }
+                          }}
+                          className="px-4 py-3 flex items-center justify-between cursor-pointer"
+                        >
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-bold text-white font-mono">{order.numero}</span>
@@ -444,9 +519,11 @@ export default function POS() {
                           <span className="text-lg font-bold text-pikta-accent">${order.total?.toFixed(2)}</span>
                         </div>
 
-                        {selectedOrder?.id === order.id && (
-                          <div className="px-4 pb-3 border-t border-gray-600 pt-2">
-                            <div className="space-y-1 mb-3">
+                        {/* Expanded View */}
+                        {isExpanded && (
+                          <div className="px-4 pb-4 border-t border-gray-600 pt-3">
+                            {/* Items */}
+                            <div className="space-y-1 mb-2">
                               {items.map((item, idx) => (
                                 <div key={idx} className="flex justify-between items-center text-sm">
                                   <span className="text-gray-300">{item.qty || item.cantidad}x {item.nombre}</span>
@@ -455,47 +532,117 @@ export default function POS() {
                               ))}
                             </div>
 
-                            <div className="border-t border-gray-600 pt-2 mb-3">
-                              <div className="flex justify-between items-center">
-                                <span className="font-bold text-white">TOTAL:</span>
-                                <span className="text-xl font-bold text-pikta-accent">${order.total?.toFixed(2)}</span>
-                              </div>
+                            {/* Add Extra Products */}
+                            <div className="mt-3 mb-3">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setShowExtraProducts(!showExtraProducts); }}
+                                className="w-full py-2 bg-pikta-accent/20 text-pikta-accent border border-pikta-accent/40 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-pikta-accent/30 transition"
+                              >
+                                <Plus size={14} /> Agregar Producto Extra
+                              </button>
+
+                              {showExtraProducts && (
+                                <div className="mt-2 bg-gray-800 rounded-xl p-3">
+                                  <div className="flex gap-1.5 flex-wrap mb-2">
+                                    {categories.map(cat => (
+                                      <button
+                                        key={cat}
+                                        onClick={(e) => { e.stopPropagation(); setExtraCategory(cat); }}
+                                        className={`px-3 py-1 rounded text-[11px] font-medium transition ${extraCategory === cat ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                                      >
+                                        {cat}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto">
+                                    {filteredExtraProducts.map(p => (
+                                      <button
+                                        key={p.id}
+                                        onClick={(e) => { e.stopPropagation(); addToExtraCart(p); }}
+                                        className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 rounded-lg px-2 py-1.5 text-left transition"
+                                      >
+                                        <span className="text-sm">{p.emoji || '🍽'}</span>
+                                        <div className="min-w-0">
+                                          <p className="text-white text-[11px] font-medium truncate">{p.nombre}</p>
+                                          <p className="text-pikta-accent text-[10px] font-bold">${p.precio.toFixed(2)}</p>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  {/* Extra Cart */}
+                                  {extraCart.length > 0 && (
+                                    <div className="mt-2 border-t border-gray-600 pt-2">
+                                      {extraCart.map(item => (
+                                        <div key={item.id} className="flex items-center justify-between py-1">
+                                          <div className="flex items-center gap-2">
+                                            <button onClick={(e) => { e.stopPropagation(); updateExtraQty(item.id, -1); }} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center text-[10px]"><Minus size={10} /></button>
+                                            <span className="text-white text-xs font-bold">{item.qty}</span>
+                                            <button onClick={(e) => { e.stopPropagation(); updateExtraQty(item.id, 1); }} className="w-5 h-5 rounded bg-gray-600 text-white flex items-center justify-center text-[10px]"><Plus size={10} /></button>
+                                            <span className="text-gray-300 text-xs">{item.nombre}</span>
+                                          </div>
+                                          <span className="text-pikta-accent text-xs font-bold">${(item.precio * item.qty).toFixed(2)}</span>
+                                        </div>
+                                      ))}
+                                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
+                                        <span className="text-xs text-gray-400">Extra total: <span className="text-pikta-accent font-bold">${extraTotal.toFixed(2)}</span></span>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); sendExtrasToKitchen(); }}
+                                          className="px-4 py-1.5 bg-pikta-accent text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-pikta-accent/80 transition"
+                                        >
+                                          <Send size={12} /> Enviar a Cocina
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
-                            <div className="grid grid-cols-3 gap-2 mb-3">
-                              <button onClick={(e) => { e.stopPropagation(); setOrderMetodoPago('EFECTIVO'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${orderMetodoPago === 'EFECTIVO' ? 'bg-pikta-ok text-white' : 'bg-gray-700 text-gray-400'}`}>
-                                <Banknote size={14} /> Efectivo
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); setOrderMetodoPago('YAPPY'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${orderMetodoPago === 'YAPPY' ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400'}`}>
-                                <Smartphone size={14} /> Yappy
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); setOrderMetodoPago('TARJETA'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${orderMetodoPago === 'TARJETA' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
-                                <CreditCard size={14} /> Tarjeta
-                              </button>
-                            </div>
-
-                            {orderMetodoPago === 'EFECTIVO' && (
-                              <div className="bg-gray-800 rounded-xl p-3 mb-3">
-                                <div className="flex gap-3">
-                                  <div className="flex-1">
-                                    <p className="text-[10px] text-gray-400 mb-1">RECIBIDO</p>
-                                    <p className="text-lg font-bold text-white">${orderMontoRecibido || '0.00'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] text-gray-400 mb-1">CAMBIO</p>
-                                    <p className={`text-lg font-bold ${orderCambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${orderCambio.toFixed(2)}</p>
-                                  </div>
+                            {/* Payment section */}
+                            <div className="border-t border-gray-600 pt-3">
+                              <div className="flex justify-between items-center mb-3">
+                                <div>
+                                  <span className="text-xs text-gray-400">TOTAL {extraCart.length > 0 && `(+$${extraTotal.toFixed(2)} extra)`}</span>
+                                  <div className="text-xl font-bold text-pikta-accent">${orderTotal.toFixed(2)}</div>
                                 </div>
                               </div>
-                            )}
 
-                            <button
-                              onClick={(e) => { e.stopPropagation(); payPendingOrder(); }}
-                              disabled={!cashSession || (orderMetodoPago === 'EFECTIVO' && (!orderMontoRecibido || parseFloat(orderMontoRecibido) < order.total))}
-                              className="w-full py-3 bg-pikta-ok text-white rounded-lg font-bold text-lg hover:bg-green-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              {orderMetodoPago === 'EFECTIVO' ? `COBRAR $${order.total?.toFixed(2)}` : 'CONFIRMAR PAGO'}
-                            </button>
+                              <div className="grid grid-cols-3 gap-2 mb-3">
+                                <button onClick={(e) => { e.stopPropagation(); setOrderMetodoPago('EFECTIVO'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${orderMetodoPago === 'EFECTIVO' ? 'bg-pikta-ok text-white' : 'bg-gray-700 text-gray-400'}`}>
+                                  <Banknote size={14} /> Efectivo
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setOrderMetodoPago('YAPPY'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${orderMetodoPago === 'YAPPY' ? 'bg-pikta-info text-white' : 'bg-gray-700 text-gray-400'}`}>
+                                  <Smartphone size={14} /> Yappy
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setOrderMetodoPago('TARJETA'); }} className={`py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 ${orderMetodoPago === 'TARJETA' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                                  <CreditCard size={14} /> Tarjeta
+                                </button>
+                              </div>
+
+                              {orderMetodoPago === 'EFECTIVO' && (
+                                <div className="bg-gray-800 rounded-xl p-3 mb-3">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <p className="text-[10px] text-gray-400 mb-1">RECIBIDO</p>
+                                      <p className="text-xl font-bold text-white">${orderMontoRecibido || '0.00'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[10px] text-gray-400 mb-1">CAMBIO</p>
+                                      <p className={`text-xl font-bold ${orderCambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${orderCambio.toFixed(2)}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              <button
+                                onClick={(e) => { e.stopPropagation(); payPendingOrder(); }}
+                                disabled={!cashSession || (orderMetodoPago === 'EFECTIVO' && (!orderMontoRecibido || parseFloat(orderMontoRecibido) < orderTotal))}
+                                className="w-full py-3 bg-pikta-ok text-white rounded-lg font-bold text-lg hover:bg-green-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {orderMetodoPago === 'EFECTIVO' ? `COBRAR $${orderTotal.toFixed(2)}` : 'CONFIRMAR PAGO'}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -503,14 +650,6 @@ export default function POS() {
                   })
                 )}
               </div>
-
-              {selectedOrder && (
-                <div className="px-4 py-2 border-t border-gray-600">
-                  <button onClick={() => { setSelectedOrder(null); setOrderMontoRecibido(''); }} className="w-full py-2 bg-gray-600 text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-500 transition">
-                    Cerrar
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -547,45 +686,38 @@ export default function POS() {
 
           {/* Numpad Bar at bottom */}
           <div className="bg-pikta-panel rounded-xl p-3">
-            {view === 'pendientes' && selectedOrder ? (
-              orderMetodoPago === 'EFECTIVO' ? (
-                <div className="flex gap-3 items-stretch">
-                  <div className="bg-gray-800 rounded-xl p-3 flex flex-col justify-center min-w-[120px]">
-                    <div className="mb-1">
-                      <p className="text-[10px] text-gray-400">RECIBIDO</p>
-                      <p className="text-lg font-bold text-white">${orderMontoRecibido || '0.00'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400">CAMBIO</p>
-                      <p className={`text-lg font-bold ${orderCambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${orderCambio.toFixed(2)}</p>
-                    </div>
+            {selectedOrder && view === 'pendientes' && orderMetodoPago === 'EFECTIVO' ? (
+              <div className="flex gap-3 items-stretch">
+                <div className="bg-gray-800 rounded-xl p-3 flex flex-col justify-center min-w-[120px]">
+                  <div className="mb-1">
+                    <p className="text-[10px] text-gray-400">RECIBIDO</p>
+                    <p className="text-lg font-bold text-white">${orderMontoRecibido || '0.00'}</p>
                   </div>
-                  <div className="flex-1 grid grid-cols-4 gap-1.5">
-                    {[7,8,9].map(n => (
-                      <button key={n} onClick={() => handleOrderNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
-                    ))}
-                    <button onClick={() => handleOrderNumpad('B')} className="h-11 rounded-lg bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30 active:scale-95 transition flex items-center justify-center"><Delete size={16} /></button>
-                    {[4,5,6].map(n => (
-                      <button key={n} onClick={() => handleOrderNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
-                    ))}
-                    <button onClick={() => handleOrderNumpad('C')} className="h-11 rounded-lg text-xs font-bold bg-gray-600 text-gray-300 hover:bg-gray-500 active:scale-95 transition">CE</button>
-                    {[1,2,3].map(n => (
-                      <button key={n} onClick={() => handleOrderNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
-                    ))}
-                    <div />
-                    <button onClick={() => handleOrderNumpad('0')} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition col-span-2">0</button>
-                    <button onClick={() => handleOrderNumpad('.')} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">.</button>
-                    <div />
+                  <div>
+                    <p className="text-[10px] text-gray-400">CAMBIO</p>
+                    <p className={`text-lg font-bold ${orderCambio > 0 ? 'text-pikta-ok' : 'text-gray-500'}`}>${orderCambio.toFixed(2)}</p>
                   </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-between px-4">
-                  <p className="text-gray-400 text-sm">El cliente paga exactamente:</p>
-                  <p className="text-2xl font-bold text-pikta-accent">${selectedOrder.total?.toFixed(2)}</p>
+                <div className="flex-1 grid grid-cols-4 gap-1.5">
+                  {[7,8,9].map(n => (
+                    <button key={n} onClick={() => handleOrderNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                  ))}
+                  <button onClick={() => handleOrderNumpad('B')} className="h-11 rounded-lg bg-pikta-err/20 text-pikta-err hover:bg-pikta-err/30 active:scale-95 transition flex items-center justify-center"><Delete size={16} /></button>
+                  {[4,5,6].map(n => (
+                    <button key={n} onClick={() => handleOrderNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                  ))}
+                  <button onClick={() => handleOrderNumpad('C')} className="h-11 rounded-lg text-xs font-bold bg-gray-600 text-gray-300 hover:bg-gray-500 active:scale-95 transition">CE</button>
+                  {[1,2,3].map(n => (
+                    <button key={n} onClick={() => handleOrderNumpad(String(n))} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">{n}</button>
+                  ))}
+                  <div />
+                  <button onClick={() => handleOrderNumpad('0')} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition col-span-2">0</button>
+                  <button onClick={() => handleOrderNumpad('.')} className="h-11 rounded-lg text-lg font-bold bg-gray-700 text-white hover:bg-gray-600 active:scale-95 transition">.</button>
+                  <div />
                 </div>
-              )
+              </div>
             ) : (
-              metodoPago === 'EFECTIVO' ? (
+              metodoPago === 'EFECTIVO' && view === 'venta' ? (
                 <div className="flex gap-3 items-stretch">
                   <div className="bg-gray-800 rounded-xl p-3 flex flex-col justify-center min-w-[120px]">
                     <div className="mb-1">
@@ -616,9 +748,19 @@ export default function POS() {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between px-4">
-                  <p className="text-gray-400 text-sm">El cliente paga exactamente:</p>
-                  <p className="text-2xl font-bold text-pikta-accent">${total.toFixed(2)}</p>
+                <div className="flex items-center justify-center py-2">
+                  <p className="text-gray-500 text-sm">
+                    {view === 'pendientes' && selectedOrder
+                      ? orderMetodoPago !== 'EFECTIVO'
+                        ? `Pago ${orderMetodoPago} — monto exacto: $${orderTotal.toFixed(2)}`
+                        : 'Usa el teclado numérico para ingresar el monto recibido'
+                      : view === 'venta'
+                        ? metodoPago !== 'EFECTIVO'
+                          ? `Pago ${metodoPago} — monto exacto: $${total.toFixed(2)}`
+                          : 'Usa el teclado numérico para ingresar el monto recibido'
+                        : 'Selecciona un pedido para cobrar'
+                    }
+                  </p>
                 </div>
               )
             )}
