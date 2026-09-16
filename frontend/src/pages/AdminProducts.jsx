@@ -9,7 +9,7 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [form, setForm] = useState({ nombre: '', precio: '', categoria: 'Otros', emoji: '', prep_duration: 15, descripcion: '', sucursal_id: 1 });
+  const [form, setForm] = useState({ nombre: '', precio: '', categoria: 'Otros', emoji: '', prep_duration: 15, descripcion: '', sucursal_id: 1, tipo: 'COMIDA' });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -33,7 +33,7 @@ export default function AdminProducts() {
 
   const openCreate = () => {
     setEditingProduct(null);
-    setForm({ nombre: '', precio: '', categoria: '🍔 Combos', emoji: '🍔', prep_duration: 15, descripcion: '', sucursal_id: selectedSucursal || 1 });
+    setForm({ nombre: '', precio: '', categoria: '🍔 Combos', emoji: '🍔', prep_duration: 15, descripcion: '', sucursal_id: selectedSucursal || 1, tipo: 'COMIDA' });
     setSelectedImage(null);
     setPreviewUrl(null);
     setShowModal(true);
@@ -48,7 +48,8 @@ export default function AdminProducts() {
       emoji: product.emoji || '',
       prep_duration: product.prep_duration || 15,
       descripcion: product.descripcion || '',
-      sucursal_id: product.sucursal_id || 1
+      sucursal_id: product.sucursal_id || 1,
+      tipo: product.tipo || 'COMIDA'
     });
     setSelectedImage(null);
     setPreviewUrl(product.imagen_url || null);
@@ -165,6 +166,7 @@ export default function AdminProducts() {
                 <th className="text-left px-4 py-3">Nombre</th>
                 <th className="text-left px-4 py-3">Sucursal</th>
                 <th className="text-left px-4 py-3">Categoría</th>
+                <th className="text-left px-4 py-3">Tipo</th>
                 <th className="text-left px-4 py-3">Precio</th>
                 <th className="text-left px-4 py-3">Tiempo Prep.</th>
                 <th className="text-left px-4 py-3">Estado</th>
@@ -190,6 +192,11 @@ export default function AdminProducts() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-300">{p.categoria}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.tipo === 'BEBIDA' ? 'bg-blue-900 text-blue-300' : 'bg-orange-900 text-orange-300'}`}>
+                      {p.tipo === 'BEBIDA' ? 'Bebida' : 'Comida'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-pikta-accent font-semibold">${p.precio?.toFixed(2)}</td>
                   <td className="px-4 py-3 text-gray-300">{p.prep_duration} min</td>
                   <td className="px-4 py-3">
@@ -204,7 +211,7 @@ export default function AdminProducts() {
                 </tr>
               ))}
               {products.length === 0 && (
-                <tr><td colSpan="8" className="px-4 py-8 text-center text-gray-500">No hay productos</td></tr>
+                <tr><td colSpan="9" className="px-4 py-8 text-center text-gray-500">No hay productos</td></tr>
               )}
             </tbody>
           </table>
@@ -276,16 +283,26 @@ export default function AdminProducts() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm text-gray-400 mb-1">Tipo</label>
+                  <select value={form.tipo} onChange={e => setForm({...form, tipo: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+                    <option value="COMIDA">Comida</option>
+                    <option value="BEBIDA">Bebida</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Descripción</label>
+                  <textarea value={form.descripcion} onChange={e => setForm({...form, descripcion: e.target.value})}
+                    rows={2} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white resize-none" />
+                </div>
+                <div>
                   <label className="block text-sm text-gray-400 mb-1">Emoji</label>
                   <input value={form.emoji} onChange={e => setForm({...form, emoji: e.target.value})}
                     placeholder="🍔" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white" />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Descripción</label>
-                <textarea value={form.descripcion} onChange={e => setForm({...form, descripcion: e.target.value})}
-                  rows={2} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white resize-none" />
               </div>
 
               <div>

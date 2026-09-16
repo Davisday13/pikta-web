@@ -25,6 +25,15 @@ router.get('/', async (req, res) => {
       try { o.items = JSON.parse(o.items); } catch(e) {}
       return o;
     });
+
+    for (const order of parsed) {
+      const extras = await queryAll('SELECT * FROM pedido_extras WHERE pedido_id = ? AND estado != ? ORDER BY id ASC', [order.id, 'ENTREGADO']);
+      order.extras = extras.map(e => {
+        try { e.items = JSON.parse(e.items); } catch(err) {}
+        return e;
+      });
+    }
+
     res.json({ status: 'success', data: parsed });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -89,7 +98,7 @@ router.post('/', async (req, res) => {
       [numero, cliente_nombre || null, cliente_telefono || null, JSON.stringify(items), total, total, canal || 'CAJA', mesa || 'Mesa General', usuario_id || null, sesion_id || null, created_at, req.user.sucursal_id]
     );
 
-    res.status(201).json({ status: 'success', message: 'Pedido creado', numero });
+    res.status(201).json({ status: 'success', message: 'Pedido creado', numero, order_id: result.lastInsertRowid });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -125,17 +134,30 @@ router.put('/:id', async (req, res) => {
 router.post('/:id/extras', async (req, res) => {
   try {
     const { items, total } = req.body;
-    const order = await queryOne('SELECT items, total FROM pedidos WHERE id = ?', [req.params.id]);
+    const order = await queryOne('SELECT id FROM pedidos WHERE id = ?', [req.params.id]);
     if (!order) return res.status(404).json({ status: 'error', message: 'Pedido no encontrado' });
 
-    const currentItems = JSON.parse(order.items);
-    const newItems = currentItems.concat(items);
-    const newTotal = parseFloat(order.total) + parseFloat(total);
+    const result = await runSql(
+      'INSERT INTO pedido_extras (pedido_id, items, total, estado, created_at, sucursal_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.params.id, JSON.stringify(items), total, 'RECIBIDO', new Date().toISOString(), req.user.sucursal_id]
+    );
 
-    await runSql('UPDATE pedidos SET items = ?, total = ?, estado = ? WHERE id = ?',
-      [JSON.stringify(newItems), newTotal, 'RECIBIDO', req.params.id]);
+    res.status(201).json({ status: 'success', message: 'Extra enviado a cocina', extra_id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
 
-    res.json({ status: 'success', message: 'Productos agregados correctamente' });
+router.put('/extras/:extraId', async (req, res) => {
+  try {
+    const { estado } = req.body;
+    if (estado === 'PREPARANDO') {
+      await runSql('UPDATE pedido_extras SET estado = ? WHERE id = ?',
+        [estado, req.params.extraId]);
+    } else if (estado) {
+      await runSql('UPDATE pedido_extras SET estado = ? WHERE id = ?', [estado, req.params.extraId]);
+    }
+    res.json({ status: 'success', message: 'Extra actualizado' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

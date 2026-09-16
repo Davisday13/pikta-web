@@ -63,13 +63,13 @@ router.get('/categories', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { nombre, precio, categoria, emoji, prep_duration, descripcion, sucursal_id } = req.body;
+    const { nombre, precio, categoria, emoji, prep_duration, descripcion, sucursal_id, tipo } = req.body;
     if (!nombre || precio === undefined) {
       return res.status(400).json({ status: 'error', message: 'Nombre y precio son requeridos' });
     }
     const result = await runSql(
-      'INSERT INTO productos_menu (nombre, descripcion, precio, categoria, emoji, prep_duration, disponible, sucursal_id) VALUES (?, ?, ?, ?, ?, ?, true, ?)',
-      [nombre, descripcion || '', precio, categoria || 'Otros', emoji || '', prep_duration || 15, sucursal_id || req.user?.sucursal_id || 1]
+      'INSERT INTO productos_menu (nombre, descripcion, precio, categoria, emoji, prep_duration, disponible, sucursal_id, tipo) VALUES (?, ?, ?, ?, ?, ?, true, ?, ?)',
+      [nombre, descripcion || '', precio, categoria || 'Otros', emoji || '', prep_duration || 15, sucursal_id || req.user?.sucursal_id || 1, tipo || 'COMIDA']
     );
     res.status(201).json({ status: 'success', message: 'Producto creado', id: result.lastInsertRowid });
   } catch (err) {
@@ -79,13 +79,13 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { nombre, precio, categoria, emoji, prep_duration, disponible, descripcion, sucursal_id } = req.body;
+    const { nombre, precio, categoria, emoji, prep_duration, disponible, descripcion, sucursal_id, tipo } = req.body;
     const existing = await queryAll('SELECT disponible FROM productos_menu WHERE id = ?', [req.params.id]);
     const currentDisponible = existing.length ? existing[0].disponible : true;
     const newDisponible = disponible !== undefined ? (disponible ? true : false) : currentDisponible;
     await runSql(
-      'UPDATE productos_menu SET nombre=?, precio=?, categoria=?, emoji=?, prep_duration=?, disponible=?, descripcion=?, sucursal_id=? WHERE id=?',
-      [nombre, precio, categoria || 'Otros', emoji || '', prep_duration || 15, newDisponible, descripcion || '', sucursal_id || 1, req.params.id]
+      'UPDATE productos_menu SET nombre=?, precio=?, categoria=?, emoji=?, prep_duration=?, disponible=?, descripcion=?, sucursal_id=?, tipo=? WHERE id=?',
+      [nombre, precio, categoria || 'Otros', emoji || '', prep_duration || 15, newDisponible, descripcion || '', sucursal_id || 1, tipo || 'COMIDA', req.params.id]
     );
     res.json({ status: 'success', message: 'Producto actualizado' });
   } catch (err) {

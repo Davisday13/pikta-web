@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { ChefHat, Clock, CheckCircle, Play, Bell, Printer } from 'lucide-react';
+import { ChefHat, Clock, CheckCircle, Play, Bell, Printer, Plus } from 'lucide-react';
 
 export default function KDS() {
   const { selectedSucursal } = useAuth();
@@ -34,6 +34,15 @@ export default function KDS() {
       loadOrders();
     } catch (err) {
       alert('Error al actualizar pedido');
+    }
+  };
+
+  const updateExtraStatus = async (extraId, newStatus) => {
+    try {
+      await api.put(`/orders/extras/${extraId}`, { estado: newStatus });
+      loadOrders();
+    } catch (err) {
+      alert('Error al actualizar extra');
     }
   };
 
@@ -75,10 +84,38 @@ export default function KDS() {
     return 'border-l-gray-500 bg-pikta-panel';
   };
 
+  const getFoodItems = (items) => {
+    if (!items) return [];
+    const arr = Array.isArray(items) ? items : [];
+    return arr.filter(item => (item.tipo || 'COMIDA') === 'COMIDA');
+  };
+
+  const getAllExtras = (orders) => {
+    const result = [];
+    for (const order of orders) {
+      if (order.extras) {
+        for (const extra of order.extras) {
+          if (extra.estado !== 'ENTREGADO') {
+            result.push({ ...extra, order_numero: order.numero, order_mesa: order.mesa, order_canal: order.canal });
+          }
+        }
+      }
+    }
+    return result;
+  };
+
   const filteredOrders = orders.filter(o => {
     if (filter === 'all') return true;
     return o.estado === filter;
   });
+
+  const ordersWithFood = filteredOrders.filter(o => {
+    const foodItems = getFoodItems(o.items);
+    return foodItems.length > 0;
+  });
+
+  const allExtras = getAllExtras(orders);
+  const pendingExtras = allExtras.filter(e => e.estado !== 'ENTREGADO');
 
   const countByStatus = {
     RECIBIDO: orders.filter(o => o.estado === 'RECIBIDO').length,
@@ -98,7 +135,7 @@ export default function KDS() {
 
         <div className="flex gap-3">
           {[
-            { key: 'all', label: 'Todos', count: orders.length },
+            { key: 'all', label: 'Todos', count: ordersWithFood.length + pendingExtras.length },
             { key: 'RECIBIDO', label: 'Recibidos', count: countByStatus.RECIBIDO },
             { key: 'PREPARANDO', label: 'Preparando', count: countByStatus.PREPARANDO },
             { key: 'LISTO', label: 'Listos', count: countByStatus.LISTO },
@@ -116,15 +153,68 @@ export default function KDS() {
         </div>
       </div>
 
-      {filteredOrders.length === 0 ? (
+      {/* Extras Section */}
+      {pendingExtras.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Plus className="text-pikta-warn" size={20} />
+            <h2 className="text-sm font-bold text-pikta-warn">EXTRAS PENDIENTES</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {pendingExtras.map(extra => (
+              <div key={extra.id} className={`rounded-xl p-3 border-l-4 ${getStatusColor(extra.estado)} shadow-lg`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="text-xs font-bold text-pikta-accent">EXTRA</span>
+                    <h3 className="text-sm font-bold text-white font-mono">{extra.order_numero}</h3>
+                    <p className="text-xs text-gray-400">{extra.order_mesa}</p>
+                  </div>
+                </div>
+                <div className="space-y-1 mb-3">
+                  {(extra.items || []).map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center bg-black/20 rounded-lg px-2 py-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-pikta-accent font-bold text-xs">{item.qty || item.cantidad}x</span>
+                        <span className="text-white text-xs">{item.nombre}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-1">
+                  {extra.estado === 'RECIBIDO' && (
+                    <button onClick={() => updateExtraStatus(extra.id, 'PREPARANDO')}
+                      className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs flex items-center justify-center gap-1 transition">
+                      <Play size={10} /> Iniciar
+                    </button>
+                  )}
+                  {extra.estado === 'PREPARANDO' && (
+                    <button onClick={() => updateExtraStatus(extra.id, 'LISTO')}
+                      className="flex-1 py-1.5 bg-pikta-ok hover:bg-green-600 text-white rounded-lg text-xs flex items-center justify-center gap-1 transition">
+                      <CheckCircle size={10} /> Listo
+                    </button>
+                  )}
+                  {extra.estado === 'LISTO' && (
+                    <span className="flex-1 py-1.5 bg-green-800/50 text-green-300 rounded-lg text-xs text-center">
+                      ✓ Despachado
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Orders Section */}
+      {ordersWithFood.length === 0 && pendingExtras.length === 0 ? (
         <div className="bg-pikta-panel rounded-xl p-12 text-center">
           <ChefHat className="mx-auto text-gray-600 mb-4" size={64} />
           <p className="text-gray-400 text-lg">No hay pedidos {filter !== 'all' ? `con estado "${filter}"` : ''}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredOrders.map(order => {
-            const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+          {ordersWithFood.map(order => {
+            const foodItems = getFoodItems(order.items);
             return (
               <div key={order.id} className={`rounded-xl p-4 border-l-4 ${getStatusColor(order.estado, order.preparacion_inicio)} shadow-lg`}>
                 <div className="flex items-center justify-between mb-3">
@@ -141,7 +231,7 @@ export default function KDS() {
                 </div>
 
                 <div className="space-y-1.5 mb-4">
-                  {items.map((item, idx) => (
+                  {foodItems.map((item, idx) => (
                     <div key={idx} className="flex justify-between items-center bg-black/20 rounded-lg px-3 py-2">
                       <div className="flex items-center gap-2">
                         <span className="text-pikta-accent font-bold text-sm">{item.qty || item.cantidad}x</span>

@@ -98,7 +98,7 @@ export default function POS() {
     try {
       const items = cart.map(item => ({
         id: item.id, nombre: item.nombre, precio: item.precio, qty: item.qty,
-        cantidad: item.qty, precio_unitario: item.precio
+        cantidad: item.qty, precio_unitario: item.precio, tipo: item.tipo || 'COMIDA'
       }));
 
       let orderId = null;

@@ -143,6 +143,23 @@ async function setupDb() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pedido_extras (
+        id SERIAL PRIMARY KEY,
+        pedido_id INTEGER,
+        items TEXT NOT NULL,
+        total REAL NOT NULL,
+        estado TEXT DEFAULT 'RECIBIDO',
+        created_at TEXT,
+        sucursal_id INTEGER
+      )
+    `);
+
+    // Add tipo column to productos_menu if missing
+    try {
+      await client.query("ALTER TABLE productos_menu ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'COMIDA'");
+    } catch (e) { /* ignore */ }
+
     // Add sucursal_id columns if missing
     const alterCols = [
       'usuarios', 'pedidos', 'inventario', 'caja_sesiones'

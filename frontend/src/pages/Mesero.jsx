@@ -75,7 +75,7 @@ export default function Mesero() {
 
     try {
       const items = cart.map(item => ({
-        id: item.id, nombre: item.nombre, precio: item.precio, qty: item.qty
+        id: item.id, nombre: item.nombre, precio: item.precio, qty: item.qty, tipo: item.tipo || 'COMIDA'
       }));
 
       await api.post('/orders', {
