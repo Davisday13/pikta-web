@@ -80,11 +80,16 @@ export default function Mesero() {
 
       const existingOrder = activeOrders.find(o => o.mesa === selectedTable && o.estado !== 'COBRADO' && o.estado !== 'CANCELADO' && o.estado !== 'ENTREGADO');
 
-      if (existingOrder) {
+      if (existingOrder && existingOrder.estado === 'RECIBIDO') {
         await api.put(`/orders/${existingOrder.id}/items`, {
           items, total
         });
-        alert(`Items agregados al pedido existente de ${selectedTable}`);
+        alert(`Items agregados al pedido de ${selectedTable}`);
+      } else if (existingOrder) {
+        await api.post(`/orders/${existingOrder.id}/extras`, {
+          items, total
+        });
+        alert(`Extra enviado a cocina para ${selectedTable}`);
       } else {
         await api.post('/orders', {
           items, total, canal: 'MESERO', mesa: selectedTable,
@@ -170,9 +175,13 @@ export default function Mesero() {
                 const existingOrder = activeOrders.find(o => o.mesa === selectedTable && o.estado !== 'COBRADO' && o.estado !== 'CANCELADO' && o.estado !== 'ENTREGADO');
                 if (existingOrder) {
                   const existingItems = Array.isArray(existingOrder.items) ? existingOrder.items : [];
+                  const isDispatched = existingOrder.estado !== 'RECIBIDO';
                   return (
                     <div className="w-full">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-pikta-warn/20 text-pikta-warn font-medium">Pedido abierto — {existingOrder.numero}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${isDispatched ? 'bg-pikta-info/20 text-pikta-info' : 'bg-pikta-warn/20 text-pikta-warn'}`}>
+                        {isDispatched ? 'Despachado — enviarás como extra' : 'Pedido abierto — se agregará al mismo'}
+                      </span>
+                      <span className="text-[10px] text-gray-500 ml-1">{existingOrder.numero}</span>
                       <div className="mt-1.5 space-y-0.5 max-h-[80px] overflow-y-auto">
                         {existingItems.map((item, idx) => (
                           <div key={idx} className="flex justify-between text-[11px]">
