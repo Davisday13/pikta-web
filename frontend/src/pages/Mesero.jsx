@@ -137,16 +137,16 @@ export default function Mesero() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 overflow-y-auto flex-1 pr-2">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 overflow-y-auto flex-1 pr-2">
             {filteredProducts.map(product => (
-              <div key={product.id} onClick={() => addToCart(product)} className="bg-pikta-panel rounded-xl p-3 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer">
+              <div key={product.id} onClick={() => addToCart(product)} className="bg-pikta-panel rounded-xl p-2 flex flex-col items-center text-center hover:ring-2 hover:ring-pikta-info transition cursor-pointer">
                 {product.imagen_url ? (
-                  <img src={product.imagen_url} alt={product.nombre} className="w-16 h-16 rounded-lg object-cover mb-1" />
+                  <img src={product.imagen_url} alt={product.nombre} className="w-12 h-12 rounded-lg object-cover mb-1" />
                 ) : (
-                  <div className="text-3xl mb-1">{product.emoji || '🍽'}</div>
+                  <div className="text-2xl mb-1">{product.emoji || '🍽'}</div>
                 )}
-                <p className="text-white text-xs font-semibold leading-tight">{product.nombre}</p>
-                <p className="text-pikta-accent font-bold text-sm mt-1">${product.precio.toFixed(2)}</p>
+                <p className="text-white text-[10px] font-semibold leading-tight">{product.nombre}</p>
+                <p className="text-pikta-accent font-bold text-xs mt-0.5">${product.precio.toFixed(2)}</p>
               </div>
             ))}
           </div>
