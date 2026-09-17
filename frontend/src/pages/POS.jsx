@@ -458,7 +458,7 @@ export default function POS() {
                                       </div>
                                     ))}
                                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
-                                      <span className="text-xs text-gray-400">Extra: <span className="text-pikta-accent font-bold">${extraTotal.toFixed(2)}</span></span>
+                                      <span className="text-xs text-gray-400">Extra: <span className="text-pikta-accent font-bold">${orderExtraTotal.toFixed(2)}</span></span>
                                       <button onClick={(e) => { e.stopPropagation(); sendExtrasToKitchen(); }} className="px-4 py-1.5 bg-pikta-accent text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-pikta-accent/80 transition">
                                         <Send size={12} /> Enviar a Cocina
                                       </button>
@@ -522,7 +522,7 @@ export default function POS() {
             </div>
 
             {/* COBRAR Button */}
-            <button onClick={processOrder} disabled={!canCharge}
+            <button onClick={() => processOrder()} disabled={!canCharge}
               className="w-full mt-3 py-3 bg-pikta-ok text-white rounded-lg font-bold text-lg hover:bg-green-600 transition disabled:opacity-40 disabled:cursor-not-allowed">
               {chargeLabel}
             </button>
