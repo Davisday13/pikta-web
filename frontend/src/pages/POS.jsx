@@ -126,13 +126,43 @@ export default function POS() {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
-  const total = cart.reduce((sum, item) => sum + item.precio * item.qty, 0);
+  function getTaxRate(item) {
+    const tipo = (item.tipo || '').toUpperCase();
+    const nombre = (item.nombre || '').toUpperCase();
+    const cat = (item.categoria || '').toUpperCase();
+    if (tipo === 'BEBIDA ALCOHOLICA' || tipo === 'ALCOHOL' ||
+        nombre.includes('CERVEZA') || nombre.includes('CERVEZAS') ||
+        nombre.includes('VIN') || nombre.includes('RON') || nombre.includes('TEQUILA') ||
+        nombre.includes('VODKA') || nombre.includes('WHISKY') || nombre.includes('GINEBRA') ||
+        nombre.includes('CHAMPAGNA') || nombre.includes('ESPUMANTE') ||
+        cat === 'BEBIDAS ALCOHOLICAS' || cat === 'ALCOHOL') {
+      return 0.10;
+    }
+    return 0.07;
+  }
+
+  const totalBase = cart.reduce((sum, item) => sum + item.precio * item.qty, 0);
+  const cartITBMS = cart.reduce((sum, item) => {
+    const rate = getTaxRate(item);
+    return sum + (item.precio * item.qty * rate);
+  }, 0);
+  const total = Math.round((totalBase + cartITBMS) * 100) / 100;
   const cambio = montoRecibido && parseFloat(montoRecibido) >= total ? parseFloat(montoRecibido) - total : 0;
 
-  const orderExtraTotal = extraCart.reduce((sum, item) => sum + item.precio * item.qty, 0);
+  const orderExtraBase = extraCart.reduce((sum, item) => sum + item.precio * item.qty, 0);
+  const orderExtraITBMS = extraCart.reduce((sum, item) => {
+    const rate = getTaxRate(item);
+    return sum + (item.precio * item.qty * rate);
+  }, 0);
+  const orderExtraTotal = Math.round((orderExtraBase + orderExtraITBMS) * 100) / 100;
   const selItems = (view === 'pendientes' && selectedOrder) ? (Array.isArray(selectedOrder.items) ? selectedOrder.items : []) : [];
   const selExtrasItems = (view === 'pendientes' && selectedOrder && Array.isArray(selectedOrder.extras)) ? selectedOrder.extras.flatMap(e => Array.isArray(e.items) ? e.items : []) : [];
-  const computedOrderTotal = [...selItems, ...selExtrasItems].reduce((s, i) => s + (i.precio || i.precio_unitario || 0) * (i.qty || i.cantidad || 1), 0);
+  const computedOrderTotal = [...selItems, ...selExtrasItems].reduce((s, i) => {
+    const price = i.precio || i.precio_unitario || 0;
+    const qty = i.qty || i.cantidad || 1;
+    const rate = getTaxRate(i);
+    return s + (price * qty * (1 + rate));
+  }, 0);
   const orderTotal = (view === 'pendientes' && selectedOrder) ? ((selectedOrder.total > 0 ? parseFloat(selectedOrder.total) : null) || computedOrderTotal) : 0;
   const orderCambio = montoRecibido && parseFloat(montoRecibido) >= orderTotal ? parseFloat(montoRecibido) - orderTotal : 0;
 
@@ -189,7 +219,12 @@ export default function POS() {
       const curOrderItems = Array.isArray(curOrder.items) ? curOrder.items : [];
       const curExtrasItems = Array.isArray(curOrder.extras) ? curOrder.extras.flatMap(e => Array.isArray(e.items) ? e.items : []) : [];
       const curAllItems = [...curOrderItems, ...curExtrasItems];
-      const curTotal = (curOrder.total > 0 ? parseFloat(curOrder.total) : null) || curAllItems.reduce((s, i) => s + (i.precio || i.precio_unitario || 0) * (i.qty || i.cantidad || 1), 0);
+      const curTotal = (curOrder.total > 0 ? parseFloat(curOrder.total) : null) || curAllItems.reduce((s, i) => {
+        const price = i.precio || i.precio_unitario || 0;
+        const qty = i.qty || i.cantidad || 1;
+        const rate = getTaxRate(i);
+        return s + (price * qty * (1 + rate));
+      }, 0);
       if (payMethod === 'EFECTIVO' && (!montoRecibido || parseFloat(montoRecibido) < curTotal)) {
         return alert('El monto recibido debe ser mayor o igual al total');
       }
@@ -242,7 +277,7 @@ export default function POS() {
       let orderId = null;
       if (orderChannel === 'CAJA') {
         await api.post('/orders', {
-          items, total, canal: 'CAJA', mesa: 'VENTA DIRECTA',
+          items, total, subtotal: totalBase, canal: 'CAJA', mesa: 'VENTA DIRECTA',
           usuario_id: user.id, sesion_id: cashSession?.id, sucursal_id: effectiveSucursalId
         });
         const ordersRes = await api.get('/orders');
@@ -250,7 +285,7 @@ export default function POS() {
         if (latest) { orderId = latest.id; await api.post(`/orders/${latest.id}/pay`, { metodo_pago: payMethod, sesion_id: cashSession?.id }); }
       } else {
         const res = await api.post('/orders', {
-          items, total, canal: 'LLEVAR', mesa: 'PARA LLEVAR',
+          items, total, subtotal: totalBase, canal: 'LLEVAR', mesa: 'PARA LLEVAR',
           usuario_id: user.id, sesion_id: cashSession?.id, sucursal_id: effectiveSucursalId
         });
         orderId = res.data?.order_id;
@@ -273,7 +308,7 @@ export default function POS() {
     } catch (err) {
       alert('Error al procesar pedido');
     }
-  }, [cart, total, metodoPago, montoRecibido, orderChannel, cashSession, effectiveSucursalId, user, cambio, montoRecibido]);
+  }, [cart, total, totalBase, metodoPago, montoRecibido, orderChannel, cashSession, effectiveSucursalId, user, cambio, montoRecibido]);
 
   const openCash = async () => {
     const monto = prompt('Monto inicial en caja:');
@@ -479,6 +514,13 @@ export default function POS() {
 
           {/* BOTTOM: Payment Methods + Numpad + COBRAR */}
           <div className="border-t border-gray-600 px-4 py-3">
+            {/* ITBMS Breakdown */}
+            {view === 'venta' && cart.length > 0 && (
+              <div className="text-[10px] text-gray-500 mb-1 text-right">
+                <span>Subtotal: ${totalBase.toFixed(2)}</span>
+                <span className="ml-2">ITBMS: ${cartITBMS.toFixed(2)}</span>
+              </div>
+            )}
             {/* Total + Payment Methods */}
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-bold text-gray-400">TOTAL:</span>
