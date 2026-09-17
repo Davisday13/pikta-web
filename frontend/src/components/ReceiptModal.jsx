@@ -33,13 +33,17 @@ function getTaxRate(item) {
 }
 
 function calcItemTax(price, qty, taxRate) {
-  const precioSinImp = price / (1 + taxRate);
-  const impuestoUnitario = price - precioSinImp;
+  const impuestoUnitario = Math.round(price * taxRate * 100) / 100;
+  const precioConImp = Math.round((price + impuestoUnitario) * 100) / 100;
+  const subtotalSinImp = Math.round(price * qty * 100) / 100;
+  const impuestoItem = Math.round(impuestoUnitario * qty * 100) / 100;
   return {
-    precioSinImp: Math.round(precioSinImp * 100) / 100,
-    impuestoUnitario: Math.round(impuestoUnitario * 100) / 100,
-    subtotalSinImp: Math.round(precioSinImp * qty * 100) / 100,
-    impuestoItem: Math.round(impuestoUnitario * qty * 100) / 100,
+    precioBase: Math.round(price * 100) / 100,
+    impuestoUnitario,
+    precioConImp,
+    subtotalSinImp,
+    impuestoItem,
+    subtotalConImp: Math.round((subtotalSinImp + impuestoItem) * 100) / 100,
   };
 }
 
@@ -77,6 +81,7 @@ export default function ReceiptModal({ order, onClose }) {
 
   const totalSinImp = subtotal7 + subtotal10;
   const totalImp = imp7 + imp10;
+  const totalConImp = totalSinImp + totalImp;
 
   const cufe = `FE01${COMPANY.ruc.replace(/-/g, '')}${String(folio).padStart(10, '0')}${String(Math.floor(Math.random() * 9999999999999999))}`;
   const cafeDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -140,9 +145,9 @@ export default function ReceiptModal({ order, onClose }) {
         doc.text(ln, pw / 2 - 20, y);
         if (i === 0) {
           doc.text(`${item.qty}.00`, pw / 2 + 5, y, { align: 'center' });
-          doc.text(`${item.calc.precioSinImp.toFixed(2)}`, pw / 2 + 16, y, { align: 'right' });
+          doc.text(`${item.calc.precioBase.toFixed(2)}`, pw / 2 + 16, y, { align: 'right' });
           doc.text(`${item.calc.impuestoUnitario.toFixed(2)}`, pw / 2 + 27, y, { align: 'right' });
-          doc.text(`${(item.price * item.qty).toFixed(2)}`, pw - 4, y, { align: 'right' });
+          doc.text(`${item.calc.subtotalConImp.toFixed(2)}`, pw - 4, y, { align: 'right' });
         }
         y += 2.5;
       });
@@ -174,7 +179,7 @@ export default function ReceiptModal({ order, onClose }) {
 
     doc.setFont('courier', 'bold'); doc.setFontSize(8);
     doc.text('Total Neto:', pw / 2 - 20, y);
-    doc.text(`$${total.toFixed(2)}`, pw - 4, y, { align: 'right' });
+    doc.text(`$${totalConImp.toFixed(2)}`, pw - 4, y, { align: 'right' });
     y += 5;
     line();
 
@@ -182,7 +187,7 @@ export default function ReceiptModal({ order, onClose }) {
     doc.setFont('courier', 'normal'); doc.setFontSize(6);
     const metodoLabel = metodo_pago === 'EFECTIVO' ? 'EFECTIVO' : metodo_pago === 'YAPPY' ? 'YAPPY' : 'TARJETA';
     doc.text(`${metodoLabel}:`, pw / 2 - 20, y);
-    doc.text(`${total.toFixed(2)}`, pw - 4, y, { align: 'right' });
+    doc.text(`${totalConImp.toFixed(2)}`, pw - 4, y, { align: 'right' });
     y += 3;
     if (metodo_pago === 'EFECTIVO') {
       doc.text('Vuelto:', pw / 2 - 20, y);
@@ -308,9 +313,9 @@ export default function ReceiptModal({ order, onClose }) {
               <tr>
                 <td class="col-desc" style="font-size:10px;">${item.nombre}</td>
                 <td class="col-cant" style="font-size:10px;">${item.qty}.00</td>
-                <td class="col-pv" style="font-size:10px;">${item.calc.precioSinImp.toFixed(2)}</td>
+                <td class="col-pv" style="font-size:10px;">${item.calc.precioBase.toFixed(2)}</td>
                 <td class="col-imp" style="font-size:10px;">${item.calc.impuestoUnitario.toFixed(2)}</td>
-                <td class="col-tot" style="font-size:10px;">${(item.price * item.qty).toFixed(2)}</td>
+                <td class="col-tot" style="font-size:10px;">${item.calc.subtotalConImp.toFixed(2)}</td>
               </tr>
             `).join('')}
           </table>
@@ -324,11 +329,11 @@ export default function ReceiptModal({ order, onClose }) {
           </div>
           <div class="line"></div>
           <div class="center bold" style="font-size:14px; margin:4px 0;">
-            <p>Total Neto: $${total.toFixed(2)}</p>
+            <p>Total Neto: $${totalConImp.toFixed(2)}</p>
           </div>
           <div class="line"></div>
           <div class="center" style="font-size:10px; margin:4px 0;">
-            <p>${metodo_pago === 'EFECTIVO' ? 'EFECTIVO' : metodo_pago}: ${total.toFixed(2)}</p>
+            <p>${metodo_pago === 'EFECTIVO' ? 'EFECTIVO' : metodo_pago}: ${totalConImp.toFixed(2)}</p>
             ${metodo_pago === 'EFECTIVO' ? `<p>Vuelto: ${(cambio || 0).toFixed(2)}</p>` : ''}
             <p>Total articulos: ${totalItems}</p>
             <p>Cajero/a: ${order.cajero || 'CAJA'}</p>
@@ -434,9 +439,9 @@ export default function ReceiptModal({ order, onClose }) {
               <div key={idx} className="grid grid-cols-[1fr_30px_50px_50px_55px] gap-1 text-[11px] px-1">
                 <span className="text-white truncate">{item.nombre}</span>
                 <span className="text-gray-300 text-center">{item.qty}.00</span>
-                <span className="text-gray-300 text-right">{item.calc.precioSinImp.toFixed(2)}</span>
+                <span className="text-gray-300 text-right">{item.calc.precioBase.toFixed(2)}</span>
                 <span className="text-gray-300 text-right">{item.calc.impuestoUnitario.toFixed(2)}</span>
-                <span className="text-pikta-accent font-semibold text-right">${(item.price * item.qty).toFixed(2)}</span>
+                <span className="text-pikta-accent font-semibold text-right">${item.calc.subtotalConImp.toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -456,14 +461,14 @@ export default function ReceiptModal({ order, onClose }) {
 
           <div className="text-center mb-3 px-1">
             <span className="text-white font-bold text-sm">Total Neto: </span>
-            <span className="text-pikta-accent font-bold text-lg">${total.toFixed(2)}</span>
+            <span className="text-pikta-accent font-bold text-lg">${totalConImp.toFixed(2)}</span>
           </div>
 
           <div className="border-t border-gray-600 my-2" />
 
           {/* Payment Info - centered */}
           <div className="text-[11px] text-gray-300 space-y-0.5 mb-2 px-1 text-center">
-            <p>{metodo_pago === 'EFECTIVO' ? 'EFECTIVO' : metodo_pago}: ${total.toFixed(2)}</p>
+            <p>{metodo_pago === 'EFECTIVO' ? 'EFECTIVO' : metodo_pago}: ${totalConImp.toFixed(2)}</p>
             {metodo_pago === 'EFECTIVO' && <p>Vuelto: ${(cambio || 0).toFixed(2)}</p>}
             <p>Total articulos: {totalItems}</p>
             <p>Cajero/a: {order.cajero || 'CAJA'}</p>
